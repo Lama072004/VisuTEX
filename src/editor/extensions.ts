@@ -53,6 +53,7 @@ import {
   VerticalSpaceView,
 } from "./nodeViews";
 import { Pagination } from "./pagination";
+import { FormattingMarks } from "./formattingMarks";
 import { SearchReplace } from "./search";
 import { TableCaptions } from "./tableCaptions";
 
@@ -98,6 +99,7 @@ export function appExtensions(): AnyExtension[] {
     SearchReplace,
     TableCaptions,
     Pagination,
+    FormattingMarks,
     ExtraKeys,
   ];
 }

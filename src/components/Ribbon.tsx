@@ -133,6 +133,8 @@ export type ViewState = {
   showPdf: boolean;
   showOutline: boolean;
   showRuler: boolean;
+  /** Formatierungszeichen (¶, ·, ↵) wie „Alle anzeigen“ in Word */
+  showMarks: boolean;
   compiling: boolean;
 };
 
@@ -532,6 +534,14 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
               </div>
             )}
           </Dropdown>
+          <Button
+            label={t("Alle anzeigen")}
+            icon={<Pilcrow size={16} />}
+            title={t("Formatierungszeichen anzeigen: Absatzmarken (¶), Leerzeichen (·), Zeilenumbrüche (↵) – Strg+Umschalt+*")}
+            active={view.showMarks}
+            disabled={!visual}
+            onClick={() => onViewChange({ showMarks: !view.showMarks })}
+          />
           <Button
             label={t("Einzug verkleinern")}
             icon={<IndentDecrease size={16} />}

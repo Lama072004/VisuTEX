@@ -72,3 +72,23 @@ test("Suche findet Text über Markengrenzen und respektiert Optionen", () => {
   const [first] = findMatches(doc, "Messwert", { caseSensitive: true, wholeWord: false });
   assert.equal(doc.textBetween(first.from, first.to), "Messwert");
 });
+
+test("Formatierungszeichen: Absatzmarken, Leerzeichen, geschützte Leerzeichen, Zeilenumbrüche", async () => {
+  const { decorate } = await import("../src/editor/formattingMarks.ts");
+  const doc = Node.fromJSON(schema, {
+    type: "doc",
+    content: [
+      { type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: "Titel" }] },
+      { type: "paragraph", content: [{ type: "text", text: "a b c" }, { type: "hardBreak" }, { type: "text", text: "d" }] },
+      { type: "paragraph" },
+      { type: "codeBlock", content: [{ type: "text", text: "x y" }] },
+    ],
+  });
+  const decorations = decorate(doc, 0, doc.content.size);
+  const count = (predicate) => decorations.filter(predicate).length;
+  assert.equal(count((d) => d.spec.key === "vtx-mark-paragraph"), 3, "Überschrift, Absatz, leerer Absatz – Code ohne ¶");
+  assert.equal(count((d) => d.spec.key === "vtx-mark-break"), 1);
+  assert.equal(count((d) => d.type.attrs?.class === "vtx-mark-nbsp"), 1);
+  // Leerzeichen: „a b“ und „x y“ im Code
+  assert.equal(count((d) => d.type.attrs?.class === "vtx-mark-space"), 2);
+});

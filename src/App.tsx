@@ -174,6 +174,7 @@ function Workspace() {
     showPdf: localStorage.getItem("visutex-show-pdf") === "true",
     showOutline: localStorage.getItem("visutex-show-outline") === "true",
     showRuler: localStorage.getItem("visutex-show-ruler") === "true",
+    showMarks: localStorage.getItem("visutex-show-marks") === "true",
     compiling: false,
   }));
   const [backstage, setBackstage] = useState<BackstageView | null>("home");
@@ -396,7 +397,12 @@ function Workspace() {
     localStorage.setItem("visutex-show-pdf", String(view.showPdf));
     localStorage.setItem("visutex-show-outline", String(view.showOutline));
     localStorage.setItem("visutex-show-ruler", String(view.showRuler));
-  }, [view.zoom, view.paged, view.showPdf, view.showOutline, view.showRuler]);
+    localStorage.setItem("visutex-show-marks", String(view.showMarks));
+  }, [view.zoom, view.paged, view.showPdf, view.showOutline, view.showRuler, view.showMarks]);
+  // Formatierungszeichen (¶) im Editor ein-/ausblenden
+  useEffect(() => {
+    editor?.commands.setFormattingMarks(view.showMarks);
+  }, [editor, view.showMarks]);
 
   const reloadAddons = useCallback(() => {
     void api.addonsList().then(setAddons).catch(() => setAddons([]));
@@ -1848,6 +1854,7 @@ function Workspace() {
       case "view.toggleOutline": setView((value) => ({ ...value, showOutline: !value.showOutline })); return true;
       case "view.togglePaged": setView((value) => ({ ...value, paged: !value.paged })); return true;
       case "view.toggleRuler": setView((value) => ({ ...value, showRuler: !value.showRuler })); return true;
+      case "view.formattingMarks": setView((value) => ({ ...value, showMarks: !value.showMarks })); return true;
       case "view.zoomIn": zoom(10); return true;
       case "view.zoomOut": zoom(-10); return true;
       case "view.zoomReset": zoom(null); return true;

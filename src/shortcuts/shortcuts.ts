@@ -81,6 +81,7 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
   { id: "view.toggleOutline", label: "Navigation ein/aus", category: "Ansicht", scope: "global", defaults: [] },
   { id: "view.togglePaged", label: "Seitenansicht ein/aus", category: "Ansicht", scope: "global", defaults: [] },
   { id: "view.toggleRuler", label: "Lineal ein/aus", category: "Ansicht", scope: "global", defaults: [] },
+  { id: "view.formattingMarks", label: "Formatierungszeichen ein/aus (¶)", category: "Ansicht", scope: "global", defaults: ["Ctrl+Shift+*"] },
   { id: "view.zoomIn", label: "Vergrößern", category: "Ansicht", scope: "global", defaults: ["Ctrl+Plus", "Ctrl+="] },
   { id: "view.zoomOut", label: "Verkleinern", category: "Ansicht", scope: "global", defaults: ["Ctrl+-"] },
   { id: "view.zoomReset", label: "Zoom 100 %", category: "Ansicht", scope: "global", defaults: ["Ctrl+0"] },

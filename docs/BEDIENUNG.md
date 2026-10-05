@@ -44,6 +44,9 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   (PDF/A-2b oder PDF/A-3b). Der LaTeX-Export beginnt dann mit `\DocumentMetadata{pdfstandard=A-2b, …}`; TeX Live,
   MiKTeX und Overleaf (ab 2022) erzeugen daraus ein PDF/A mit eingebetteten Schriften, Metadaten und Farbprofil.
   Die eingebaute Engine kennt diese Angabe nicht, überspringt sie mit Hinweis und erzeugt ein normales PDF.
+- **Formatierungszeichen** (wie „Alle anzeigen“ in Word): *Start → Absatz →* ¶ bzw. `Strg+Umschalt+*` zeigt Absatzmarken (¶),
+  Leerzeichen (·), geschützte Leerzeichen (°) und Zeilenumbrüche (↵). Nur Anzeige – Dokument, Seitenumbrüche und
+  LaTeX bleiben unverändert; die Einstellung bleibt gespeichert.
 - **Lineal:** *Ansicht → Lineal*; die Dreiecke verschieben den linken/rechten Seitenrand (Alt: feine Schritte).
 - **Literatur:** *Referenzen → Zitat einfügen* – Einträge aus Zotero (Zotero muss laufen) oder als BibTeX; die Datei
   `literatur.bib` liegt im Projektordner.

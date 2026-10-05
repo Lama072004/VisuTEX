@@ -1686,6 +1686,49 @@ kbd {
   max-width: 100%;
 }
 /* Unterabbildungen: nebeneinander wie \hfill zwischen subfigure-Umgebungen */
+/* Formatierungszeichen (Start → Absatz → Alle anzeigen): ohne Breite, damit sich nichts verschiebt */
+.vtx-mark {
+  display: inline-block;
+  width: 0;
+  overflow: visible;
+  white-space: pre;
+  /* Erstzeileneinzug des Absatzes nicht erben (sonst um den Einzug versetzt) */
+  text-indent: 0;
+  color: var(--accent);
+  opacity: 0.75;
+  font-weight: normal;
+  font-style: normal;
+  text-decoration: none;
+  pointer-events: none;
+  user-select: none;
+}
+.vtx-mark-paragraph {
+  transform: translateX(0.08em);
+}
+.vtx-mark-space,
+.vtx-mark-nbsp {
+  position: relative;
+}
+.vtx-mark-space::after,
+.vtx-mark-nbsp::after {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  text-indent: 0;
+  color: var(--accent);
+  opacity: 0.75;
+  font-weight: normal;
+  pointer-events: none;
+}
+.vtx-mark-space::after {
+  content: "·";
+}
+.vtx-mark-nbsp::after {
+  content: "°";
+  top: -0.25em;
+}
+
 .subfigures-block {
   margin: 0 0 0.9em;
   padding-top: 0.4em;

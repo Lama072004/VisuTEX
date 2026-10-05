@@ -319,6 +319,26 @@ function findLineBreak(
   return lineRect ? { pos: lineLow, lineTop: lineRect.top } : null;
 }
 
+/**
+ * Cursor direkt hinter einem Zeilen-Umbruch (Inline-Abstandshalter): ProseMirror setzt die
+ * Browser-Auswahl dann zwischen Abstandshalter und Text (`<p>`, Offset n). Dort zeichnet der
+ * Browser den Cursor am Ende der vorigen Seite – es sieht aus, als spränge er nach oben,
+ * obwohl Tippen/Löschen auf der neuen Seite wirkt. Deshalb an den Anfang des folgenden
+ * Textknotens setzen (gleiche Dokumentposition, Cursor auf der neuen Seite).
+ */
+function placeCaretAfterGap(view: EditorView) {
+  if (!view.state.selection.empty) return;
+  const selection = view.dom.ownerDocument.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return;
+  const { anchorNode, anchorOffset } = selection;
+  if (!anchorNode || !view.dom.contains(anchorNode) || anchorNode.nodeType !== Node.ELEMENT_NODE || anchorOffset === 0) return;
+  const before = anchorNode.childNodes[anchorOffset - 1];
+  if (!(before instanceof HTMLElement) || !before.classList.contains("vtx-page-gap-inline")) return;
+  let next: Node | null = anchorNode.childNodes[anchorOffset] ?? null;
+  while (next && next.nodeType !== Node.TEXT_NODE) next = next.firstChild;
+  if (next) selection.collapse(next, 0);
+}
+
 function sameBreaks(left: Break[], right: Break[]) {
   return (
     left.length === right.length &&
@@ -429,6 +449,9 @@ export const Pagination = Extension.create({
             timer = window.setTimeout(run, delay);
           };
           storage.remeasure = () => schedule(0);
+          // Beim Fokussieren setzt der Browser die Auswahl neu → Cursor an Seitengrenzen korrigieren
+          const onFocus = () => window.requestAnimationFrame(() => placeCaretAfterGap(view));
+          view.dom.addEventListener("focus", onFocus);
           const onLoad = () => schedule(60);
           view.dom.addEventListener("load", onLoad, true);
           const resize = new ResizeObserver(() => schedule(80));
@@ -437,12 +460,14 @@ export const Pagination = Extension.create({
           schedule(0);
           return {
             update: (updatedView, previousState) => {
+              placeCaretAfterGap(updatedView);
               if (measuring) return;
               if (updatedView.state.doc !== previousState.doc) schedule();
             },
             destroy: () => {
               if (timer !== undefined) window.clearTimeout(timer);
               view.dom.removeEventListener("load", onLoad, true);
+              view.dom.removeEventListener("focus", onFocus);
               resize.disconnect();
               storage.remeasure = () => undefined;
             },
