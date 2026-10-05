@@ -6,6 +6,10 @@
 #   Linux:   .deb (Debian/Ubuntu/Mint), .rpm (Fedora/RHEL), .AppImage (alle Distributionen)
 # Anschließend werden die Linux-Pakete auf mehreren Distributionen installiert
 # und auf fehlende Bibliotheken geprüft.
+#
+# Release: Tag `v…` hochladen (z. B. `v0.2.0-alpha.1`) → nach erfolgreichen Tests entsteht ein
+# Release-Entwurf mit allen Paketen (Windows: Setup, MSI, portable ZIP · Linux: deb, rpm,
+# AppImage). Tags mit alpha/beta/rc werden als Vorabversion markiert.
 name: build
 
 on:
@@ -91,6 +95,10 @@ jobs:
       - name: Installationspakete erzeugen
         run: npx tauri build --target ${{ matrix.target }}
 
+      - name: Portable Windows-Version (ZIP)
+        if: runner.os == 'Windows'
+        run: node scripts/portable.mjs --target ${{ matrix.target }} --zip
+
       - uses: actions/upload-artifact@v4
         with:
           name: visutex-${{ matrix.target }}
@@ -100,6 +108,7 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.target }}/release/*-portable.zip
           if-no-files-found: error
 
   # Portabilität: das exportierte Dokument muss mit TeX Live auf allen drei Engines
@@ -185,3 +194,26 @@ jobs:
           # Mitgeliefertes TeX-Bundle vorhanden?
           find / -name tex-bundle.zip -path '*resources*' 2>/dev/null | grep -q .
           echo "OK: ${{ matrix.image }}"
+
+  # Release-Entwurf mit allen Paketen – nur für Tags `v…` und nur, wenn alles grün ist.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, latex-engines, linux-distributionen]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: visutex-*-*
+          path: pakete
+      - name: Dateien sammeln
+        run: |
+          mkdir -p upload
+          find pakete -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*-portable.zip' \) -exec cp {} upload/ \;
+          ls -la upload
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: upload/*
+          draft: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}

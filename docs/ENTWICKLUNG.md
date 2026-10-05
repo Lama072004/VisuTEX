@@ -104,6 +104,19 @@ Release-Build dauert wegen der Optimierung (LTO) 15–30 Minuten, danach deutlic
 - Prüfen, dass alles statisch gelinkt ist (keine fehlenden DLLs auf fremden Rechnern):
   `dumpbin /dependents src-tauri\target\release\visutex.exe` darf keine ICU-/Fontconfig-/FreeType-/VC-Runtime-DLLs zeigen.
 
+**Release auf GitHub (Windows und Linux):** Linux-Pakete entstehen in der CI (`.github/workflows/build.yml`), nicht
+lokal. Ablauf:
+
+1. Änderungen committen und pushen.
+2. Tag mit Versionsnummer anlegen und hochladen, z. B. `v0.2.0-alpha.1` (GitHub Desktop: *History* → Rechtsklick auf den
+   Commit → *Create Tag…* → *Push origin*; oder `git tag v0.2.0-alpha.1` und `git push origin v0.2.0-alpha.1`).
+3. Die CI baut Windows (Setup, MSI, portable ZIP) und Linux (`.deb`, `.rpm`, `.AppImage`), führt alle Tests aus,
+   installiert die Linux-Pakete testweise auf mehreren Distributionen und legt danach einen **Release-Entwurf** mit allen
+   Dateien an (Tags mit alpha/beta/rc als Vorabversion). Der erste Lauf dauert wegen vcpkg rund eine Stunde.
+4. Unter *Releases* den Entwurf öffnen, Text einfügen, *Publish release*.
+
+Lokal: `npm run portable:zip` erzeugt `VisuTeX_<Version>_x64-portable.zip` neben der EXE.
+
 **Was testen?** Neues Dokument aus einer Vorlage, Bild/Bilder nebeneinander einfügen, lange Tabelle, Formeln, Skizze,
 Kompilieren (F5) und PDF-Vorschau, Code-Ansicht hin und zurück, eigene `.tex`-Datei öffnen, Präsentation (Datei → Neu →
 Präsentation) inkl. Export als PDF/Beamer, Speichern/Öffnen, Sprache der Oberfläche, Datei → Info → Systemprüfung.

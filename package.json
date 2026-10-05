@@ -18,6 +18,7 @@
     "i18n": "node scripts/i18n-check.mjs",
     "exe": "tauri build --no-bundle",
     "portable": "node scripts/portable.mjs",
+    "portable:zip": "node scripts/portable.mjs --zip",
     "installer": "tauri build --bundles nsis",
     "installer:alle": "tauri build"
   },
