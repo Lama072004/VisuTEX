@@ -74,6 +74,10 @@ jobs:
           cargo install cargo-vcpkg --locked
           cargo vcpkg -v build --target ${{ matrix.target }}
 
+      - name: vcpkg-Bibliotheken (Linux, zur Fehlersuche)
+        if: runner.os == 'Linux'
+        run: ls -la src-tauri/target/vcpkg/installed/x64-linux/lib || true
+
       - name: Frontend – Abhängigkeiten, Tests, Build
         run: |
           npm ci
