@@ -170,6 +170,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # Minimale Container (openSUSE) haben kein `find`
+          if ! command -v find >/dev/null; then
+            zypper --non-interactive install findutils
+          fi
           deb=$(find pakete -name '*.deb' | head -n1)
           rpm=$(find pakete -name '*.rpm' | head -n1)
           appimage=$(find pakete -name '*.AppImage' | head -n1)
@@ -200,8 +204,11 @@ jobs:
           if ldd "$binary" | grep "not found"; then
             echo "Fehlende Bibliotheken auf ${{ matrix.image }}"; exit 1
           fi
-          # Mitgeliefertes TeX-Bundle vorhanden?
-          find / -name tex-bundle.zip -path '*resources*' 2>/dev/null | grep -q .
+          # Mitgeliefertes TeX-Bundle vorhanden? (nur Installationsordner durchsuchen – `find /`
+          # stolpert über verschwindende /proc-Einträge und bricht mit pipefail ab)
+          bundle=$(find /usr /opt /tmp/squashfs-root -name tex-bundle.zip -path '*resources*' -print -quit 2>/dev/null || true)
+          test -n "$bundle"
+          echo "TeX-Bundle: $bundle"
           echo "OK: ${{ matrix.image }}"
 
   # Release-Entwurf mit allen Paketen – nur für Tags `v…` und nur, wenn alles grün ist.
