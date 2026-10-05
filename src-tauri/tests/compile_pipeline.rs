@@ -322,9 +322,7 @@ fn all_document_languages_compile() {
 #[test]
 #[ignore]
 fn pdfa_document_metadata_compiles() {
-    let latex =
-        std::fs::read_to_string(manifest().join("../tests/fixtures/pdfa.tex")).unwrap();
-    let mut notes = Vec::new();
+    let latex = std::fs::read_to_string(manifest().join("../tests/fixtures/pdfa.tex")).unwrap();
     let output = compile(
         CompileRequest {
             latex,
@@ -332,7 +330,7 @@ fn pdfa_document_metadata_compiles() {
             extra_search_paths: Vec::new(),
         },
         &bundle(),
-        &mut |note| notes.push(note.to_string()),
+        &mut |note| eprintln!("  {note}"),
     )
     .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
     let errors: Vec<_> = output

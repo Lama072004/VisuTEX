@@ -31,8 +31,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       CARGO_TERM_COLOR: always
+    # bash auch unter Windows: bricht beim ersten fehlgeschlagenen Befehl ab
+    # (PowerShell würde z. B. eine fehlgeschlagene Formatprüfung übergehen)
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Linux-Systempakete (Tauri/WebKitGTK und vcpkg-Werkzeuge)
         if: runner.os == 'Linux'
@@ -42,7 +47,7 @@ jobs:
             libappindicator3-dev librsvg2-dev patchelf build-essential pkg-config rpm file \
             autoconf autoconf-archive automake libtool bison gperf python3 python3-venv
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -118,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     container: texlive/texlive:latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: visutex-roundtrip
@@ -152,7 +157,7 @@ jobs:
             kind: appimage
     container: ${{ matrix.image }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/download-artifact@v4
         with:
           name: visutex-x86_64-unknown-linux-gnu
