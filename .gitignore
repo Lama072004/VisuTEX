@@ -1,12 +1,58 @@
-# Abhängigkeiten und Build-Ausgaben
+# ---------------------------------------------------------------- Abhängigkeiten und Build-Ausgaben
 node_modules/
 dist/
+*.tsbuildinfo
+# Rust/Tauri: Debug-/Release-Builds, Installer, Testausgaben (target/visutex-*), vcpkg-Baum
 src-tauri/target/
 src-tauri/gen/schemas/
-# rechnerspezifisch (von npm run setup erzeugt)
-src-tauri/.cargo/
+# Zwischendateien der Werkzeuge (z. B. Bundle-Neubau)
+*.zip.tmp
+*.tmp
+# Programme, Installer und Bibliotheken (entstehen nur beim Bauen; versioniert bleiben nur
+# Bau-Zutaten wie Icons, Schriften und resources/tex-bundle.zip)
+*.exe
+*.msi
+*.msix
+*.appx
+*.dll
+*.pdb
+*.lib
+*.exp
+*.obj
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.pkg.tar.*
+/VisuTeX-portable/
 
-# LaTeX-Hilfsdateien (z. B. von vorlage_fhv_v7.tex)
+# ---------------------------------------------------------------- Interne Arbeitsdateien
+# CLAUDE.md (Anweisungen für Claude Code) und VISUTEX_IMPLEMENTATION.md (Statusbericht)
+# liegen in .claude/ – nicht versioniert
+
+# ---------------------------------------------------------------- Rechnerspezifisch
+# von `npm run setup` erzeugt (vcpkg-Pfade, statisches Linken)
+src-tauri/.cargo/
+.env
+.env.*
+
+# ---------------------------------------------------------------- Private Testdokumente (nie veröffentlichen)
+/Vorlagen_Test_TEX/
+/vorlage_fhv_v7.*
+/*.xmpi
+# Eigene Testdateien im Projektordner (Dokumente, Präsentationen, PDFs)
+/*.tex
+/*.pdf
+/*.visutex
+/*.vtxslides
+/*.bib
+
+# ---------------------------------------------------------------- LaTeX-Hilfsdateien
 *.aux
 *.bbl
 *.bcf
@@ -20,21 +66,27 @@ src-tauri/.cargo/
 *.run.xml
 *.synctex.gz
 *.toc
-
-# Editor/OS
-.DS_Store
-Thumbs.db
+*.nav
+*.snm
+*.vrb
 *.visutex-tmp
 
-# Private Testdokumente und Vorlagen (nicht veröffentlichen)
-/Vorlagen_Test_TEX/
-/vorlage_fhv_v7.*
-/pdfa.xmpi
-/*.xmpi
-# Lokale Claude-/Editor-Einstellungen
+# ---------------------------------------------------------------- Linux-Pakete (makepkg)
+packaging/arch/*.deb
+packaging/arch/*.pkg.tar.*
+packaging/arch/src/
+packaging/arch/pkg/
+
+# ---------------------------------------------------------------- Editor/OS/Werkzeuge
+.DS_Store
+Thumbs.db
+desktop.ini
+*.orig
+*.rej
+npm-debug.log*
 /.claude/
+/.idea/
 /.vscode/*
 !/.vscode/extensions.json
 !/.vscode/tasks.json
 !/.vscode/launch.json
-/.idea/

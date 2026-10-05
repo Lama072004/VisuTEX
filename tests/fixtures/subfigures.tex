@@ -1,0 +1,26 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+\begin{document}
+Vergleich in Abbildung~\ref{fig:vergleich}.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[b]{0.45\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{bilder/vorher.png}
+    \caption{Vorher}
+    \label{fig:vorher}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.45\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{bilder/nachher.png}
+    \caption{Nachher}
+    \label{fig:nachher}
+  \end{subfigure}
+  \caption{Vergleich}
+  \label{fig:vergleich}
+\end{figure}
+\end{document}

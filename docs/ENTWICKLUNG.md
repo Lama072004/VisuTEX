@@ -84,11 +84,29 @@ node scripts/i18n-keys.mjs import fr fr.txt texte.txt   # Nr|"Übersetzung" → 
 Neue Oberflächensprache: `src/i18n/locales/<code>.json` anlegen und in `UI_LANGUAGES` (`src/i18n/index.ts`) eintragen.
 Neue Dokumentsprache: Eintrag in `src/latex/document-languages.json`, danach Bundle neu bauen (babel-Dateien).
 
-## Installationspakete
+## EXE und Installer erstellen
 
-```bash
-npm run tauri build      # Windows: NSIS-Installer + MSI · Linux: .deb, .rpm, AppImage
-```
+Voraussetzung: die Einrichtung oben (`npm run setup` zeigt alles grün). Alle Befehle aus der Projektwurzel; der erste
+Release-Build dauert wegen der Optimierung (LTO) 15–30 Minuten, danach deutlich weniger.
+
+| Befehl | Ergebnis | Zum Testen |
+|---|---|---|
+| `npm run exe` | `src-tauri/target/release/visutex.exe` (Release, ohne Installer) | direkt starten |
+| `npm run portable` | `src-tauri/target/release/VisuTeX-portable/` – EXE + `resources/` + `licenses/` in einem Ordner | Ordner kopieren und auf einem anderen Rechner starten |
+| `npm run installer` | `src-tauri/target/release/bundle/nsis/VisuTeX_<Version>_x64-setup.exe` | wie ein Nutzer installieren |
+| `npm run installer:alle` | Windows: NSIS + MSI · Linux: `.deb`, `.rpm`, `.AppImage` | |
+
+- Die EXE findet das TeX-Bundle im Ordner `resources` neben sich (der Build legt ihn an); die portable Version enthält ihn.
+- Die portable Version braucht WebView2 – unter Windows 10/11 ist es vorinstalliert. Der Installer bringt den
+  WebView2-Offline-Installer mit; dafür lädt `tauri build` beim ersten Mal das Installationsprogramm von WebView2 und die
+  NSIS-/WiX-Werkzeuge herunter (nur beim Bauen, nicht zur Laufzeit).
+- Version anpassen: `version` in `package.json`, `src-tauri/Cargo.toml` und `src-tauri/tauri.conf.json` gleich halten.
+- Prüfen, dass alles statisch gelinkt ist (keine fehlenden DLLs auf fremden Rechnern):
+  `dumpbin /dependents src-tauri\target\release\visutex.exe` darf keine ICU-/Fontconfig-/FreeType-/VC-Runtime-DLLs zeigen.
+
+**Was testen?** Neues Dokument aus einer Vorlage, Bild/Bilder nebeneinander einfügen, lange Tabelle, Formeln, Skizze,
+Kompilieren (F5) und PDF-Vorschau, Code-Ansicht hin und zurück, eigene `.tex`-Datei öffnen, Präsentation (Datei → Neu →
+Präsentation) inkl. Export als PDF/Beamer, Speichern/Öffnen, Sprache der Oberfläche, Datei → Info → Systemprüfung.
 
 `dumpbin /dependents target\release\visutex.exe` darf unter Windows keine ICU-/Fontconfig-/FreeType-/VC-Runtime-DLLs zeigen
 (alles statisch gelinkt). Die CI (`.github/workflows/build.yml`) baut Windows und Linux, führt alle Tests aus und installiert

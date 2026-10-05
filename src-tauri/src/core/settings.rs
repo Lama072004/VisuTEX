@@ -55,7 +55,13 @@ pub struct Metadata {
     pub author: String,
     pub subject: String,
     pub keywords: String,
+    /// PDF/A über `\DocumentMetadata`: "" (normales PDF) | a-2b | a-3b
+    #[serde(default)]
+    pub pdf_standard: String,
 }
+
+/// Erlaubte PDF/A-Stufen (klein geschrieben wie in den Einstellungen).
+pub const PDF_STANDARDS: &[&str] = &["a-2b", "a-3b"];
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -319,6 +325,12 @@ impl DocumentSettings {
                 author: text(metadata.get("author"), ""),
                 subject: text(metadata.get("subject"), ""),
                 keywords: text(metadata.get("keywords"), ""),
+                pdf_standard: metadata
+                    .get("pdfStandard")
+                    .and_then(Value::as_str)
+                    .map(str::to_ascii_lowercase)
+                    .filter(|value| PDF_STANDARDS.contains(&value.as_str()))
+                    .unwrap_or_default(),
             },
             bibliography: Bibliography {
                 file: if !bib_file.is_empty()

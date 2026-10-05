@@ -86,7 +86,7 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 │   ├── resources/                tex-bundle.zip, sketch-symbols.json, mitgelieferte Add-ons
 │   └── tests/                    Round-Trip, Fremddokumente, Kompilier-Pipeline
 ├── tests/                        Node-Tests + Fixtures (Volltest-Dokument, Fremddokumente, Folien)
-├── scripts/                      setup.mjs (Einrichtung), i18n-*.mjs (Übersetzungen), check-latex-engines.sh
+├── scripts/                      setup.mjs (Einrichtung), i18n-*.mjs (Übersetzungen), check-latex-engines.sh, portable.mjs (Testversion)
 ├── docs/                         diese Dokumentation
 ├── packaging/                    Arch-Linux-PKGBUILD
 └── .github/workflows/build.yml   CI: Windows + Linux, Tests, Installation auf mehreren Distributionen

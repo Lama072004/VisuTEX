@@ -36,6 +36,8 @@ export type DocumentMetadata = {
   author: string;
   subject: string;
   keywords: string;
+  /** PDF/A-Archivformat über \DocumentMetadata ("" = normales PDF) */
+  pdfStandard: "" | "a-2b" | "a-3b";
 };
 
 export type BibliographySettings = {
@@ -124,7 +126,7 @@ export const defaultDocumentSettings: DocumentSettings = {
   pageDisplayColor: "",
   pagePdfColor: "",
   headerFooter: defaultHeaderFooter,
-  metadata: { title: "", author: "", subject: "", keywords: "" },
+  metadata: { title: "", author: "", subject: "", keywords: "", pdfStandard: "" },
   bibliography: { file: "", style: "ieee" },
 };
 
@@ -230,6 +232,7 @@ export function normalizeSettings(input: unknown): DocumentSettings {
       author: cleanText(metadata.author),
       subject: cleanText(metadata.subject),
       keywords: cleanText(metadata.keywords),
+      pdfStandard: pick(metadata.pdfStandard, ["", "a-2b", "a-3b"] as const, ""),
     },
     bibliography: {
       file: bibFile && isSafeRelativePath(bibFile) && /\.bib$/i.test(bibFile) ? bibFile.replace(/\\/g, "/") : "",

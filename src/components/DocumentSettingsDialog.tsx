@@ -235,6 +235,14 @@ export function DocumentSettingsDialog({ settings, customPreamble, availableFont
               <Field label={t("Autor/in")} wide><input value={draft.metadata.author} onChange={(event) => setMeta({ author: event.currentTarget.value })} /></Field>
               <Field label={t("Thema")} wide><input value={draft.metadata.subject} onChange={(event) => setMeta({ subject: event.currentTarget.value })} /></Field>
               <Field label={t("Schlüsselwörter")} wide><input value={draft.metadata.keywords} onChange={(event) => setMeta({ keywords: event.currentTarget.value })} /></Field>
+              <Field label={t("PDF-Standard")} wide>
+                <select value={draft.metadata.pdfStandard} onChange={(event) => setMeta({ pdfStandard: event.currentTarget.value as DocumentSettings["metadata"]["pdfStandard"] })}>
+                  <option value="">{t("Normales PDF")}</option>
+                  <option value="a-2b">{t("PDF/A-2b (Archiv, z. B. für Abschlussarbeiten)")}</option>
+                  <option value="a-3b">{t("PDF/A-3b (Archiv mit eingebetteten Dateien)")}</option>
+                </select>
+              </Field>
+              <p className="form-info span-2">{t("PDF/A gilt für den LaTeX-Export: TeX Live, MiKTeX und Overleaf (ab 2022) erzeugen daraus ein archivfähiges PDF mit eingebetteten Schriften, Metadaten und Farbprofil. Die eingebaute Engine erzeugt weiterhin ein normales PDF.")}</p>
             </>
           )}
           {section === "preamble" && (

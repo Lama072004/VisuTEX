@@ -47,7 +47,9 @@ Alles Nötige (TeX-Engine, Pakete, Schriften) ist enthalten. Die *Systemprüfung
 npm install
 npm run setup            # prüft Rust, vcpkg, Systempakete und bietet Fehlendes an
 npm run tauri dev        # starten
-npm run tauri build      # Installationspakete
+npm run exe              # Programm bauen (src-tauri/target/release/visutex.exe)
+npm run portable         # daraus eine portable Testversion (Ordner mit EXE + TeX-Bundle)
+npm run installer        # Windows-Installer (Setup.exe)
 ```
 
 Details, Tests und VS-Code-Einrichtung: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md).

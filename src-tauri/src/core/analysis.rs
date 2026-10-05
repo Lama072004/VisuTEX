@@ -1,7 +1,7 @@
 //! Dokumentanalyse für Dialoge und Statusleiste: Labels (Querverweise),
 //! Gliederung (Navigationsbereich), verwendete Zitate/Abkürzungen, Wortzahl.
 
-use super::export::{attr_bool, attr_str, children, node_type, text_content};
+use super::export::{attr, attr_bool, attr_str, children, node_type, text_content};
 use serde::Serialize;
 use serde_json::Value;
 

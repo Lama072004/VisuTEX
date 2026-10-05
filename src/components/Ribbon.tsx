@@ -94,6 +94,7 @@ export type RibbonActions = {
   insertTable: () => void;
   insertLatexTable: () => void;
   insertImage: () => void;
+  insertSubfigures: () => void;
   insertTikz: (environment: "tikzpicture" | "circuitikz") => void;
   insertMath: (inline: boolean) => void;
   insertLink: () => void;
@@ -648,6 +649,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
     add("illustrations", t("Illustrationen"), (
       <>
         <Button large label={t("Bild")} icon={<ImagePlus size={22} />} disabled={!visual} onClick={actions.insertImage} />
+        <Button large label={t("Bilder nebeneinander")} icon={<Images size={22} />} title={t("Unterabbildungen: mehrere Bilder mit eigenen Beschriftungen (a), (b) … und gemeinsamer Beschriftung")} disabled={!visual} onClick={actions.insertSubfigures} />
         <Button large label={t("Zeichnung")} icon={<PenTool size={22} />} disabled={!visual} onClick={() => actions.insertTikz("tikzpicture")} />
         <Button large label={t("Schaltung")} icon={<CircuitBoard size={22} />} disabled={!visual} onClick={() => actions.insertTikz("circuitikz")} />
         <Button large label={t("Skizze")} icon={<Shapes size={22} />} title={t("Skizzier-Werkzeug: Linien, Formen und Bauteile auf einem Raster zeichnen")} disabled={!visual} onClick={actions.openSketch} />

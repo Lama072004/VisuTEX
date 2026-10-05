@@ -559,6 +559,36 @@
       }
     },
     {
+      "type": "subfigures",
+      "attrs": {
+        "items": [
+          {
+            "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJElEQVR4nGNQTX49IIhh1OJRi0ctHrV41OJRi0ctHrV45FgMALtuh50FHzexAAAAAElFTkSuQmCC",
+            "alt": "",
+            "title": "",
+            "latexPath": "",
+            "caption": "Erste Ansicht",
+            "label": "fig:ansicht-a",
+            "widthPercent": 100,
+            "boxPercent": 48
+          },
+          {
+            "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAUCAIAAABwJOjsAAAAJElEQVR4nGNQTX49IIhh1OJRi0ctHrV41OJRi0ctHrV45FgMALtuh50FHzexAAAAAElFTkSuQmCC",
+            "alt": "",
+            "title": "",
+            "latexPath": "",
+            "caption": "Zweite Ansicht",
+            "label": "fig:ansicht-b",
+            "widthPercent": 100,
+            "boxPercent": 48
+          }
+        ],
+        "caption": "Zwei Ansichten nebeneinander",
+        "label": "fig:ansichten",
+        "placement": "htbp"
+      }
+    },
+    {
       "type": "table",
       "attrs": {
         "caption": "Messwerte & Ergebnisse",

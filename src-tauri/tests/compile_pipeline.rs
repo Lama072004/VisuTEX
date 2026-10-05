@@ -316,3 +316,30 @@ fn all_document_languages_compile() {
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
+
+/// PDF/A-Dokumente (`\DocumentMetadata`, LaTeX ab 2022) kompilieren auch mit der
+/// eingebauten Engine: die Zeile wird zeilengenau ausgeblendet (mit Hinweis).
+#[test]
+#[ignore]
+fn pdfa_document_metadata_compiles() {
+    let latex =
+        std::fs::read_to_string(manifest().join("../tests/fixtures/pdfa.tex")).unwrap();
+    let mut notes = Vec::new();
+    let output = compile(
+        CompileRequest {
+            latex,
+            project_root: Some(project_dir("visutex-pdfa")),
+            extra_search_paths: Vec::new(),
+        },
+        &bundle(),
+        &mut |note| notes.push(note.to_string()),
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
+    let errors: Vec<_> = output
+        .messages
+        .iter()
+        .filter(|message| message.severity == "error")
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    assert!(output.pdf.starts_with(b"%PDF"));
+}

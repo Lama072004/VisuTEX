@@ -75,6 +75,24 @@ fn normalize(value: &Value, parent_type: &str) -> Value {
                             ("color" | "backgroundColor", Value::String(color)) => {
                                 Value::String(color.to_uppercase())
                             }
+                            // Unterabbildungen: Bildquelle wird beim Export zur Datei
+                            ("items", Value::Array(items)) => Value::Array(
+                                items
+                                    .iter()
+                                    .map(|item| {
+                                        let mut item =
+                                            item.as_object().cloned().unwrap_or_default();
+                                        item.retain(|key, value| {
+                                            !matches!(
+                                                key.as_str(),
+                                                "src" | "alt" | "title" | "latexPath"
+                                            ) && !value.is_null()
+                                                && *value != Value::String(String::new())
+                                        });
+                                        Value::Object(item)
+                                    })
+                                    .collect(),
+                            ),
                             ("lineHeight", Value::String(text)) => Value::String(text.clone()),
                             _ => attr.clone(),
                         };
@@ -293,4 +311,125 @@ fn long_table_breaks_across_pages_and_round_trips() {
         },
     );
     assert_eq!(again.body, first.body);
+}
+
+#[test]
+fn subfigures_import_from_foreign_code_and_export_stably() {
+    let source = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/subfigures.tex"),
+    )
+    .expect("Fixture lesbar");
+    let settings = DocumentSettings::default();
+    let imported = import_latex(&source, &settings);
+    let node = imported.doc["content"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|node| node["type"] == "subfigures")
+        .unwrap_or_else(|| panic!("keine Unterabbildungen: {}", imported.doc));
+    let items = node["attrs"]["items"].as_array().unwrap();
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["caption"], "Vorher");
+    assert_eq!(items[0]["label"], "fig:vorher");
+    assert_eq!(items[0]["position"], "b");
+    assert_eq!(items[0]["boxPercent"], 45);
+    assert_eq!(items[1]["latexPath"], "bilder/nachher.png");
+    assert_eq!(node["attrs"]["caption"], "Vergleich");
+    assert_eq!(node["attrs"]["label"], "fig:vergleich");
+
+    // Unverändert: Originalcode bleibt erhalten
+    let options = ExportOptions {
+        settings: &settings,
+        custom_preamble: imported.preamble.as_deref(),
+        addon_preamble: &[],
+    };
+    let unchanged = export_document(&imported.doc, &options);
+    assert!(unchanged
+        .body
+        .contains(r"\begin{subfigure}[b]{0.45\textwidth}"));
+
+    // Bearbeitet: neu erzeugt, und der erzeugte Code ist selbst stabil
+    let mut doc = imported.doc.clone();
+    for block in doc["content"].as_array_mut().unwrap() {
+        if block["type"] == "subfigures" {
+            block["attrs"]["items"][0]["caption"] = Value::from("Vorher (neu)");
+            if let Some(attrs) = block["attrs"].as_object_mut() {
+                attrs.remove("sourceLatex");
+            }
+        }
+    }
+    let plain = DocumentSettings::default();
+    let generated = export_document(
+        &doc,
+        &ExportOptions {
+            settings: &plain,
+            custom_preamble: None,
+            addon_preamble: &[],
+        },
+    );
+    for fragment in [
+        r"\usepackage{subcaption}",
+        r"\begin{subfigure}[b]{0.45\linewidth}",
+        r"\caption{Vorher (neu)}",
+        r"\label{fig:nachher}",
+        r"\hfill",
+        r"\caption{Vergleich}",
+    ] {
+        assert!(
+            generated.latex.contains(fragment),
+            "{fragment} fehlt:\n{}",
+            generated.body
+        );
+    }
+    let again = import_latex(&generated.latex, &plain);
+    let reexported = export_document(
+        &again.doc,
+        &ExportOptions {
+            settings: &plain,
+            custom_preamble: again.preamble.as_deref(),
+            addon_preamble: &[],
+        },
+    );
+    assert_eq!(reexported.body, generated.body);
+    let analysis = visutex_lib::core::analysis::analyze(&again.doc);
+    let labels: Vec<&str> = analysis.labels.iter().map(|l| l.label.as_str()).collect();
+    for label in ["fig:vorher", "fig:nachher", "fig:vergleich"] {
+        assert!(labels.contains(&label), "{label} fehlt in {labels:?}");
+    }
+}
+
+#[test]
+fn pdfa_setting_writes_document_metadata_and_imports_back() {
+    let doc = serde_json::json!({ "type": "doc", "content": [
+        { "type": "paragraph", "content": [{ "type": "text", "text": "Archiv" }] }
+    ] });
+    let settings = DocumentSettings::from_value(&serde_json::json!({
+        "language": "english",
+        "metadata": { "title": "Arbeit", "pdfStandard": "a-2b" }
+    }));
+    let exported = export_document(
+        &doc,
+        &ExportOptions {
+            settings: &settings,
+            custom_preamble: None,
+            addon_preamble: &[],
+        },
+    );
+    let metadata_line = exported
+        .latex
+        .lines()
+        .position(|line| line == r"\DocumentMetadata{pdfstandard=A-2b, lang=en-GB}")
+        .unwrap_or_else(|| panic!("keine DocumentMetadata-Zeile:\n{}", exported.latex));
+    let class_line = exported
+        .latex
+        .lines()
+        .position(|line| line.starts_with(r"\documentclass"))
+        .unwrap();
+    assert!(metadata_line < class_line);
+    let imported = import_latex(&exported.latex, &DocumentSettings::default());
+    assert_eq!(imported.settings_patch["metadata"]["pdfStandard"], "a-2b");
+    // ungültige Angaben werden verworfen
+    let invalid =
+        DocumentSettings::from_value(&serde_json::json!({ "metadata": { "pdfStandard": "x-9" } }));
+    assert_eq!(invalid.metadata.pdf_standard, "");
 }

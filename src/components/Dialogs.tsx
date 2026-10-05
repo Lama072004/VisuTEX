@@ -1,5 +1,5 @@
 /**
- * Eigene Dialoge statt window.prompt/confirm/alert (Vorgabe aus CLAUDE.md).
+ * Eigene Dialoge statt window.prompt/confirm/alert (Projektvorgabe).
  * Promise-basiert: `const values = await dialogs.form({...})`.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";

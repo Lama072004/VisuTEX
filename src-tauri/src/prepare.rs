@@ -7,6 +7,8 @@
 //! - `biblatex` mit Biber (externes Programm, nicht enthalten) → `backend=bibtex`
 //!   (BibTeX ist in Tectonic eingebaut; Zitate und Literaturverzeichnis funktionieren).
 //! - `pdfx` (PDF/A) scheitert unter XeTeX → wird übersprungen, `hyperref` bleibt verfügbar.
+//! - `\DocumentMetadata` (PDF/A über den LaTeX-Kern ab 2022) kennt der ältere Kern der
+//!   Engine nicht → wird ausgeblendet; der exportierte Code erzeugt PDF/A mit TeX Live usw.
 //! - Fehlende Bilder (`\includegraphics`) → beschrifteter Platzhalter statt Abbruch.
 
 use std::path::Path;
@@ -213,11 +215,65 @@ pub fn graphic_is_readable(file: &Path) -> bool {
 }
 
 pub fn prepare_for_engine(latex: &str, project_root: Option<&Path>) -> Prepared {
-    let mut prepared = prepare_packages(latex);
+    let mut metadata_notes = Vec::new();
+    let latex = strip_document_metadata(latex, &mut metadata_notes);
+    let mut prepared = prepare_packages(&latex);
+    prepared.notes.splice(0..0, metadata_notes);
     if let Some(root) = project_root {
         prepared.latex = replace_missing_graphics(&prepared.latex, root, &mut prepared.notes);
     }
     prepared
+}
+
+/// Blendet `\DocumentMetadata{…}` vor `\documentclass` aus (Leerzeichen statt Text,
+/// Zeilenumbrüche bleiben – Zeilennummern stimmen weiter).
+fn strip_document_metadata(latex: &str, notes: &mut Vec<String>) -> String {
+    const COMMAND: &str = "\\DocumentMetadata";
+    let class = latex.find("\\documentclass").unwrap_or(latex.len());
+    let mut offset = 0;
+    while let Some(found) = latex[offset..class].find(COMMAND) {
+        let start = offset + found;
+        offset = start + COMMAND.len();
+        let line_start = latex[..start].rfind('\n').map_or(0, |index| index + 1);
+        if code_part(&latex[line_start..start]).len() < start - line_start {
+            continue; // auskommentiert
+        }
+        let mut index = offset;
+        while latex[index..].starts_with([' ', '\t', '\r', '\n']) {
+            index += 1;
+        }
+        if !latex[index..].starts_with('{') {
+            continue;
+        }
+        let mut depth = 0;
+        let mut end = None;
+        for (position, character) in latex[index..].char_indices() {
+            match character {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(index + position + 1);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let Some(end) = end else {
+            return latex.to_string();
+        };
+        let blanked: String = latex[start..end]
+            .chars()
+            .map(|character| if character == '\n' { '\n' } else { ' ' })
+            .collect();
+        notes.push(format!(
+            "Zeile {}: \\DocumentMetadata (PDF/A) wird von der eingebauten Engine nicht unterstützt und beim Kompilieren übersprungen – der exportierte LaTeX-Code erzeugt PDF/A mit TeX Live, MiKTeX oder Overleaf (ab 2022).",
+            latex[..start].matches('\n').count() + 1
+        ));
+        return format!("{}{}{}", &latex[..start], blanked, &latex[end..]);
+    }
+    latex.to_string()
 }
 
 /// Pakete, die eine eigene Textschrift festlegen (dann bleibt T1 unangetastet).
@@ -349,6 +405,26 @@ fn prepare_packages(latex: &str) -> Prepared {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn document_metadata_is_hidden_line_preserving() {
+        let source = "\\DocumentMetadata{\n  pdfstandard=A-2b,\n  lang=de-DE}\n\\documentclass{article}\n\\begin{document}\nx\n\\end{document}\n";
+        let prepared = prepare_for_engine(source, None);
+        assert!(!prepared.latex.contains("DocumentMetadata"));
+        assert_eq!(prepared.latex.lines().count(), source.lines().count());
+        assert!(prepared
+            .latex
+            .lines()
+            .nth(3)
+            .unwrap()
+            .starts_with("\\documentclass"));
+        assert!(prepared.notes[0].starts_with("Zeile 1:"));
+        // auskommentiert bzw. ohne Angabe: unverändert
+        let commented = "% \\DocumentMetadata{pdfstandard=A-2b}\n\\documentclass{article}\n\\begin{document}x\\end{document}";
+        assert!(prepare_for_engine(commented, None)
+            .latex
+            .contains("% \\DocumentMetadata{pdfstandard=A-2b}"));
+    }
 
     #[test]
     fn rewrites_biber_and_pdfx_without_changing_line_numbers() {

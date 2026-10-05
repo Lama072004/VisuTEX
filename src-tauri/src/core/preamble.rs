@@ -230,12 +230,29 @@ pub fn is_dark_color(hex: &str) -> bool {
     luminance <= 0.179
 }
 
+/// PDF/A: `\DocumentMetadata{pdfstandard=A-2b, lang=de-DE}` (vor `\documentclass`;
+/// LaTeX-PDF-Verwaltung, schreibt XMP-Metadaten und Farbprofil).
+pub fn document_metadata_line(settings: &DocumentSettings) -> Option<String> {
+    let standard = settings.metadata.pdf_standard.as_str();
+    if !super::settings::PDF_STANDARDS.contains(&standard) {
+        return None;
+    }
+    let level = standard.trim_start_matches("a-");
+    Some(format!(
+        "\\DocumentMetadata{{pdfstandard=A-{level}, lang={}}}",
+        super::languages::get(&settings.language).bcp47
+    ))
+}
+
 pub fn generate(settings: &DocumentSettings, usage: &Usage, addon_preamble: &[String]) -> String {
     let mut lines: Vec<String> = Vec::new();
     let report = settings.has_chapters();
     let font_size = settings.default_font_size;
 
     lines.push("%% Erzeugt mit VisuTeX – kompilierbar mit pdfLaTeX, XeLaTeX und LuaLaTeX.".into());
+    if let Some(line) = document_metadata_line(settings) {
+        lines.push(line);
+    }
     let mut options: Vec<String> = Vec::new();
     if report {
         options.push(format!("fontsize={font_size}pt"));

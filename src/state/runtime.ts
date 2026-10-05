@@ -41,6 +41,8 @@ export type Runtime = {
   macros: Map<string, MacroDef>;
   editNode: (request: EditRequest) => void;
   notify: (message: string, kind?: "info" | "error") => void;
+  /** Bilddatei wählen und ins Projekt übernehmen (null: abgebrochen). */
+  chooseImage: () => Promise<{ latexPath: string; widthPercent: number } | null>;
 };
 
 let state: Runtime = {
@@ -52,6 +54,7 @@ let state: Runtime = {
   macros: new Map(),
   editNode: () => undefined,
   notify: () => undefined,
+  chooseImage: async () => null,
 };
 
 /** Kontext für `latexToHtml` aus dem aktuellen Dokument. */

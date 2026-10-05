@@ -13,8 +13,8 @@ import { latexToHtml, renderMath } from "../latex/miniRender";
 import { formatQuantity } from "../latex/siunitx";
 import { getRuntime, renderContext, useRuntime } from "../state/runtime";
 import { cachedPreview, isCommentOnly, requestPreview } from "./latexPreview";
-import { frontmatterTitles, titlePageFields } from "./schema";
-import type { FrontmatterKind, TitlePageField } from "./schema";
+import { frontmatterTitles, subfigureDefaultPercent, titlePageFields } from "./schema";
+import type { FrontmatterKind, SubfigureItem, TitlePageField } from "./schema";
 import { documentLanguage } from "../latex/languages";
 
 // ---------------------------------------------------------------- Hilfen
@@ -401,6 +401,131 @@ export function ImageView({ node, updateAttributes, selected }: ReactNodeViewPro
         {selected && <span className="resize-handle" onPointerDown={startResize} title={t("Breite ändern")} />}
       </div>
       {!captionAbove && captionElement}
+    </NodeViewWrapper>
+  );
+}
+
+// ---------------------------------------------------------------- Unterabbildungen
+
+function SubfigureCell({ item, letter, percent }: { item: SubfigureItem; letter: string; percent: number }) {
+  const t = useT();
+  const root = useRuntime((runtime) => runtime.projectRoot);
+  const latexPath = String(item.latexPath ?? "");
+  const resolved = useResolvedImage(root, latexPath, String(item.src ?? ""));
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [resolved.url]);
+  const width = Math.min(100, Math.max(5, Number(item.widthPercent) || 100));
+  const missing = !resolved.url || failed || (resolved.checked && resolved.kind === "missing");
+  const notDisplayable = resolved.kind === "eps" || (resolved.kind === "pdf" && !resolved.url.startsWith("data:"));
+  const caption = String(item.caption ?? "");
+  return (
+    <div className={`subfigure-cell align-${item.position || "t"}`} style={{ width: `${percent}%` }}>
+      <div className="image-frame" style={{ width: `${width}%` }}>
+        {missing || notDisplayable ? (
+          <div className={`image-placeholder${missing ? " is-missing" : ""}`}>
+            <strong>{!latexPath && !item.src ? t("Noch kein Bild") : missing ? t("Bild nicht gefunden") : t("PDF-Grafik")}</strong>
+            {latexPath && <code>{latexPath}</code>}
+          </div>
+        ) : (
+          <img src={resolved.url} alt={caption || latexPath} draggable={false} onError={() => setFailed(true)} />
+        )}
+      </div>
+      <div className="figure-caption subfigure-caption">
+        ({letter}) {item.captionLatex ? <span dangerouslySetInnerHTML={{ __html: latexToHtml(caption, renderContext()) }} /> : caption}
+      </div>
+    </div>
+  );
+}
+
+/** Mehrere Bilder nebeneinander (subcaption) – Bearbeitung direkt am Block. */
+export function SubfiguresView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+  const t = useT();
+  const items = (Array.isArray(node.attrs.items) ? node.attrs.items : []) as SubfigureItem[];
+  const caption = String(node.attrs.caption ?? "");
+  const label = String(node.attrs.label ?? "");
+  const fallback = subfigureDefaultPercent(items.length);
+  const letters = "abcdefghijklmnopqrstuvwxyz";
+  const setItems = (next: SubfigureItem[]) => updateAttributes({ items: next });
+  const patchItem = (index: number, patch: Partial<SubfigureItem>) => setItems(items.map((item, position) => (position === index ? { ...item, ...patch } : item)));
+  const chooseFor = async (index: number) => {
+    const image = await getRuntime().chooseImage();
+    if (image) patchItem(index, { latexPath: image.latexPath, src: null, alt: "", title: "" });
+  };
+  const addItem = async () => {
+    const image = await getRuntime().chooseImage();
+    const count = items.length + 1;
+    const share = subfigureDefaultPercent(count);
+    // Breiten gleichmäßig neu verteilen, wenn alle noch dem Standard entsprachen
+    const evened = items.map((item) => (item.boxPercent === undefined || item.boxPercent === fallback ? { ...item, boxPercent: share } : item));
+    setItems([...evened, { latexPath: image?.latexPath ?? "", src: null, caption: "", label: "", widthPercent: 100, boxPercent: share }]);
+  };
+  const removeItem = (index: number) => setItems(items.filter((_, position) => position !== index));
+  const move = (index: number, delta: number) => {
+    const target = index + delta;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    setItems(next);
+  };
+
+  return (
+    <NodeViewWrapper className={`subfigures-block${selected ? " is-selected" : ""}`} data-caption={caption ? "true" : undefined}>
+      <div className="subfigure-row" contentEditable={false}>
+        {items.map((item, index) => (
+          <SubfigureCell key={index} item={item} letter={letters[index] ?? String(index + 1)} percent={Math.min(100, Math.max(5, Number(item.boxPercent) || fallback))} />
+        ))}
+        {items.length === 0 && <div className="image-placeholder">{t("Keine Bilder – „Bild hinzufügen“ wählen")}</div>}
+      </div>
+      {caption && <Caption text={caption} latex={node.attrs.captionLatex === true} kind="figure" />}
+      {selected && (
+        <EditPanel className="subfigure-editor">
+          {items.map((item, index) => (
+            <div className="node-edit-row" key={index}>
+              <strong className="subfigure-letter">({letters[index] ?? index + 1})</strong>
+              <button type="button" onClick={() => void chooseFor(index)} title={String(item.latexPath || "")}>
+                {item.latexPath || item.src ? t("Bild ändern …") : t("Bild wählen …")}
+              </button>
+              <label className="grow">
+                {t("Unterbeschriftung")}
+                <input value={String(item.caption ?? "")} onChange={(event) => patchItem(index, { caption: event.currentTarget.value })} />
+              </label>
+              <label>
+                {t("Label")}
+                <input
+                  value={String(item.label ?? "")}
+                  placeholder="fig:teil-a"
+                  onChange={(event) => labelPattern.test(event.currentTarget.value) && patchItem(index, { label: event.currentTarget.value })}
+                />
+              </label>
+              <label>
+                {t("Breite")}
+                <input
+                  type="number"
+                  min={5}
+                  max={100}
+                  value={Number(item.boxPercent) || fallback}
+                  onChange={(event) => patchItem(index, { boxPercent: Math.min(100, Math.max(5, Number(event.currentTarget.value) || fallback)) })}
+                />
+                %
+              </label>
+              <button type="button" className="small" disabled={index === 0} onClick={() => move(index, -1)} title={t("Nach links")}>←</button>
+              <button type="button" className="small" disabled={index === items.length - 1} onClick={() => move(index, 1)} title={t("Nach rechts")}>→</button>
+              <button type="button" className="small" onClick={() => removeItem(index)} title={t("Entfernen")}>✕</button>
+            </div>
+          ))}
+          <div className="node-edit-row">
+            <button type="button" onClick={() => void addItem()}>{t("Bild hinzufügen …")}</button>
+            <label className="grow">
+              {t("Gemeinsame Beschriftung")}
+              <input value={caption} onChange={(event) => updateAttributes({ caption: event.currentTarget.value })} />
+            </label>
+            <label>
+              {t("Label")}
+              <input value={label} placeholder="fig:vergleich" onChange={(event) => labelPattern.test(event.currentTarget.value) && updateAttributes({ label: event.currentTarget.value })} />
+            </label>
+          </div>
+        </EditPanel>
+      )}
     </NodeViewWrapper>
   );
 }

@@ -15,7 +15,11 @@
     "setup": "node scripts/setup.mjs",
     "doctor": "node scripts/setup.mjs --check",
     "typecheck": "tsc --noEmit",
-    "i18n": "node scripts/i18n-check.mjs"
+    "i18n": "node scripts/i18n-check.mjs",
+    "exe": "tauri build --no-bundle",
+    "portable": "node scripts/portable.mjs",
+    "installer": "tauri build --bundles nsis",
+    "installer:alle": "tauri build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

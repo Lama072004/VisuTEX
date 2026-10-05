@@ -35,7 +35,15 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   dann *Tabelle → „Über Seiten umbrechen“* aktivieren (`longtable`: geht auf der nächsten Seite weiter, Kopfzeile wird
   wiederholt). Bilder werden beim Kompilieren auf höchstens 90 % der Seitenhöhe begrenzt. Andere Blöcke, die höher als
   eine Seite sind (z. B. sehr lange Formeln oder Roh-LaTeX), werden ebenfalls markiert.
+- **Bilder nebeneinander** (*Einfügen → Bilder nebeneinander*): Unterabbildungen (a), (b) … mit eigener Unterbeschriftung
+  und eigenem Label sowie einer gemeinsamen Beschriftung (Paket `subcaption`). Block anklicken → je Bild „Bild wählen …“,
+  Unterbeschriftung, Label und Breite; Pfeile ändern die Reihenfolge, „Bild hinzufügen …“ ergänzt weitere. Querverweise
+  auf einzelne Teilbilder (`\ref{fig:teil-a}` → „1a“) und auf die ganze Abbildung sind möglich.
 - **Größen** (*Einfügen → Größe*, siunitx): als Wert nur Zahlen (`4.7`, `1,5`, `1e-3`, `3 \pm 0.1`); Text wird abgelehnt.
+- **PDF/A** (Archivformat, oft für Abschlussarbeiten verlangt): *Dokumenteinstellungen → PDF-Metadaten → PDF-Standard*
+  (PDF/A-2b oder PDF/A-3b). Der LaTeX-Export beginnt dann mit `\DocumentMetadata{pdfstandard=A-2b, …}`; TeX Live,
+  MiKTeX und Overleaf (ab 2022) erzeugen daraus ein PDF/A mit eingebetteten Schriften, Metadaten und Farbprofil.
+  Die eingebaute Engine kennt diese Angabe nicht, überspringt sie mit Hinweis und erzeugt ein normales PDF.
 - **Lineal:** *Ansicht → Lineal*; die Dreiecke verschieben den linken/rechten Seitenrand (Alt: feine Schritte).
 - **Literatur:** *Referenzen → Zitat einfügen* – Einträge aus Zotero (Zotero muss laufen) oder als BibTeX; die Datei
   `literatur.bib` liegt im Projektordner.

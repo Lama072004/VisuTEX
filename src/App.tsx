@@ -22,7 +22,7 @@ import { FormatPainter } from "./editor/formatPainter";
 import type { PageInfo } from "./editor/pagination";
 import { invalidatePreviews, setPreviewPreambleProvider } from "./editor/latexPreview";
 import { RUNTIME_META } from "./editor/nodeViews";
-import { frontmatterKinds, frontmatterTitles } from "./editor/schema";
+import { frontmatterKinds, frontmatterTitles, subfigureDefaultPercent } from "./editor/schema";
 import type { FrontmatterKind } from "./editor/schema";
 import { languageInfo, loadLanguage, systemLanguage, translate } from "./i18n";
 import type { UiLanguage } from "./i18n";
@@ -1456,8 +1456,8 @@ function Workspace() {
     [editor, analysis, dialogs, t],
   );
   useEffect(() => {
-    setRuntime({ editNode: (request) => void editNode(request) });
-  }, [editNode]);
+    setRuntime({ editNode: (request) => void editNode(request), chooseImage });
+  }, [editNode, chooseImage]);
 
   const actions: RibbonActions = {
     openBackstage: () => setBackstage("home"),
@@ -1539,6 +1539,14 @@ function Workspace() {
     insertImage: async () => {
       const image = await chooseImage();
       if (image) editor?.chain().focus().insertContent({ type: "image", attrs: { ...image, placement: "htbp" } }).run();
+    },
+    insertSubfigures: () => {
+      const item = (letter: string) => ({ latexPath: "", src: null, caption: "", label: `fig:teil-${letter}`, widthPercent: 100, boxPercent: subfigureDefaultPercent(2) });
+      editor
+        ?.chain()
+        .focus()
+        .insertContent({ type: "subfigures", attrs: { items: [item("a"), item("b")], caption: "", label: "fig:vergleich", placement: "htbp" } })
+        .run();
     },
     insertTikz: (environment) =>
       editor?.chain().focus().insertContent({ type: "tikzBlock", attrs: { code: TIKZ_TEMPLATES[environment], environment } }).run(),

@@ -1568,6 +1568,7 @@ kbd {
 .math-block.is-selected,
 .tikz-block.is-selected,
 .image-block.is-selected,
+.subfigures-block.is-selected,
 .raw-latex-block.is-selected,
 .title-page.is-selected,
 .directory-block.is-selected {
@@ -1683,6 +1684,33 @@ kbd {
   position: relative;
   display: inline-block;
   max-width: 100%;
+}
+/* Unterabbildungen: nebeneinander wie \hfill zwischen subfigure-Umgebungen */
+.subfigures-block {
+  margin: 0 0 0.9em;
+  padding-top: 0.4em;
+  text-align: center;
+}
+.subfigure-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0;
+}
+.subfigure-cell {
+  text-align: center;
+}
+.subfigure-cell.align-c {
+  align-self: center;
+}
+.subfigure-cell.align-b {
+  align-self: flex-end;
+}
+.subfigure-caption {
+  font-size: 0.9em;
+}
+.subfigure-editor .subfigure-letter {
+  min-width: 2em;
 }
 .image-frame img {
   width: 100%;

@@ -58,6 +58,7 @@ export const sourceBlockTypes = [
   "codeBlock",
   "horizontalRule",
   "image",
+  "subfigures",
   "table",
   "mathBlock",
   "tikzBlock",
@@ -623,6 +624,54 @@ export const DocumentImage = Image.extend({
   },
 }).configure({ allowBase64: true });
 
+/** Ein Bild innerhalb von `subfigures` (Felder wie beim Bildknoten). */
+export type SubfigureItem = {
+  src?: string | null;
+  alt?: string;
+  title?: string;
+  latexPath?: string;
+  caption?: string;
+  label?: string;
+  captionLatex?: boolean;
+  /** Bildbreite in Prozent der Unterabbildung */
+  widthPercent?: number;
+  /** Breite der Unterabbildung in Prozent der Zeilenbreite */
+  boxPercent?: number;
+  /** vertikale Ausrichtung: t (Standard), c, b */
+  position?: string;
+  graphicsOptions?: string;
+  centered?: boolean;
+};
+
+/** Standardbreite je Unterabbildung in Prozent (wie Rust `subfigure_default_share`). */
+export function subfigureDefaultPercent(count: number): number {
+  return Math.floor((0.96 / Math.max(1, count)) * 100);
+}
+
+/** Mehrere Bilder nebeneinander mit eigenen Unterbeschriftungen (subcaption). */
+export const Subfigures = Node.create({
+  name: "subfigures",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+  addAttributes() {
+    return {
+      items: jsonAttribute([]),
+      caption: dataAttribute("caption"),
+      label: dataAttribute("label"),
+      placement: jsonAttribute(null),
+      ...floatAttributes(),
+    };
+  },
+  parseHTML() {
+    return [{ tag: "figure[data-subfigures]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["figure", mergeAttributes(HTMLAttributes, { "data-subfigures": "" })];
+  },
+});
+
 export const DocumentTable = Table.extend({
   addAttributes() {
     return {
@@ -825,6 +874,7 @@ export function baseExtensions(overrides: Record<string, AnyExtension> = {}): An
     Superscript,
     Subscript,
     DocumentImage,
+    Subfigures,
     DocumentTable.configure({ resizable: true }),
     TableRow,
     DocumentTableHeader,

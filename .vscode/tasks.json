@@ -77,11 +77,24 @@
       "problemMatcher": []
     },
     {
-      "label": "Installer bauen (Release)",
-      "detail": "npm run tauri build – Windows: NSIS/MSI, Linux: deb/rpm/AppImage",
+      "label": "EXE bauen (Release, ohne Installer)",
+      "detail": "npm run exe – src-tauri/target/release/visutex.exe",
       "type": "npm",
-      "script": "tauri",
-      "args": ["build"],
+      "script": "exe",
+      "problemMatcher": []
+    },
+    {
+      "label": "Portable Testversion",
+      "detail": "npm run portable – Ordner mit EXE, TeX-Bundle und Lizenzen (nach „EXE bauen“)",
+      "type": "npm",
+      "script": "portable",
+      "problemMatcher": []
+    },
+    {
+      "label": "Installer bauen (Release)",
+      "detail": "npm run installer – Windows: Setup.exe (NSIS)",
+      "type": "npm",
+      "script": "installer",
       "problemMatcher": []
     }
   ]

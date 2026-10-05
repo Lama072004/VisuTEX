@@ -1149,6 +1149,22 @@ impl<'a> Importer<'a> {
                 }
             }
         }
+        // PDF/A über \DocumentMetadata{pdfstandard=A-2b, …}
+        if let Some(index) = text.find("\\DocumentMetadata") {
+            let start = skip_spaces(&text, index + "\\DocumentMetadata".len(), true);
+            if let Some((options, _)) = read_group(&text, start, b'{', b'}') {
+                let standard = super::export::split_options(options)
+                    .iter()
+                    .find_map(|option| {
+                        let (key, value) = option.split_once('=')?;
+                        (key.trim() == "pdfstandard").then(|| value.trim().to_ascii_lowercase())
+                    })
+                    .filter(|value| super::settings::PDF_STANDARDS.contains(&value.as_str()));
+                if let Some(standard) = standard {
+                    metadata.insert("pdfStandard".into(), json!(standard));
+                }
+            }
+        }
         if !metadata.is_empty() {
             self.patch
                 .insert("metadata".into(), Value::Object(metadata));
@@ -2557,11 +2573,14 @@ impl<'a> Importer<'a> {
             previous_end = Some(env.end);
         }
         let after = &content[index..];
+        // Beschriftung vor den Unterabbildungen = oben
+        let caption_above = outside.contains("\\caption");
         // Abstand direkt nach der letzten Unterabbildung (z. B. `\hfill` vor `\caption`) ignorieren
         let after_trimmed = strip_leading_spacing(after);
         outside.push('\n');
         outside.push_str(after_trimmed);
-        let parts = float_parts(&outside, true)?;
+        let mut parts = float_parts(&outside, true)?;
+        parts.caption_above = caption_above;
         if parts.body.is_some()
             || parts.size.is_some()
             || parts.stretch.is_some()
