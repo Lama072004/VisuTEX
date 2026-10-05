@@ -1,0 +1,51 @@
+% Synthetisches Testdokument: KOMA-Bericht mit biblatex/Biber, PDF/A-Paket,
+% Verzeichnissen im Inhaltsverzeichnis, Abkürzungen und Anhang.
+\documentclass[a4paper,12pt,twoside]{scrreprt}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage{csquotes}
+\usepackage{graphicx}
+\usepackage{acronym}
+\usepackage[a-2b]{pdfx}
+\usepackage[style=ieee,backend=biber]{biblatex}
+\addbibresource{quellen.bib}
+
+\begin{document}
+\begin{titlepage}
+  \centering
+  \vspace*{3cm}
+  {\LARGE\bfseries Titel der Beispielarbeit\par}
+  \vspace{1cm}
+  {\large Bachelorarbeit\par}
+  \vfill
+  {\large Erika Beispiel\par}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Abbildungsverzeichnis}
+\listoffigures
+
+\chapter*{Abkürzungsverzeichnis}
+\addcontentsline{toc}{chapter}{Abkürzungsverzeichnis}
+\begin{acronym}[SPS]
+  \acro{SPS}{Speicherprogrammierbare Steuerung}
+\end{acronym}
+
+\chapter{Einleitung}
+Eine \ac{SPS} wird in~\parencite{muster2020} beschrieben, siehe auch \textcite{beispiel2021}.
+
+\section{Motivation}
+Text mit \enquote{Anführungszeichen}.
+
+\appendix
+\chapter{Zusatzmaterial}
+Anhang.
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Literaturverzeichnis}
+\printbibliography
+\end{document}

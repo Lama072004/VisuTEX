@@ -1,0 +1,146 @@
+[
+  {
+    "id": "ngerman", "babel": "ngerman", "name": "Deutsch (Deutschland)", "bcp47": "de-DE", "aliases": ["german", "ngermanb", "germanb"],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "DE", "range": " bis ", "germanShorthands": true, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Vorgelegt von", "supervisor": "Betreut von", "institution": "[Hochschule]", "title": "Titel der Arbeit", "summary": "Kurzfassung",
+      "acronyms": "Abkürzungsverzeichnis", "contents": "Inhaltsverzeichnis", "figures": "Abbildungsverzeichnis", "tables": "Tabellenverzeichnis", "bibliography": "Literaturverzeichnis", "list": "Verzeichnis" }
+  },
+  {
+    "id": "naustrian", "babel": "naustrian", "name": "Deutsch (Österreich)", "bcp47": "de-AT", "aliases": ["austrian"],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "DE", "range": " bis ", "germanShorthands": true, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Vorgelegt von", "supervisor": "Betreut von", "institution": "[Hochschule]", "title": "Titel der Arbeit", "summary": "Kurzfassung",
+      "acronyms": "Abkürzungsverzeichnis", "contents": "Inhaltsverzeichnis", "figures": "Abbildungsverzeichnis", "tables": "Tabellenverzeichnis", "bibliography": "Literaturverzeichnis", "list": "Verzeichnis" }
+  },
+  {
+    "id": "nswissgerman", "babel": "nswissgerman", "name": "Deutsch (Schweiz)", "bcp47": "de-CH", "aliases": ["swissgerman"],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "DE", "range": " bis ", "germanShorthands": true, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Vorgelegt von", "supervisor": "Betreut von", "institution": "[Hochschule]", "title": "Titel der Arbeit", "summary": "Kurzfassung",
+      "acronyms": "Abkürzungsverzeichnis", "contents": "Inhaltsverzeichnis", "figures": "Abbildungsverzeichnis", "tables": "Tabellenverzeichnis", "bibliography": "Literaturverzeichnis", "list": "Verzeichnis" }
+  },
+  {
+    "id": "english", "babel": "english", "name": "English (UK)", "bcp47": "en-GB", "aliases": ["british", "UKenglish"],
+    "quotes": ["“", "”"], "decimal": ".", "siunitx": "UK", "range": " to ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Author", "supervisor": "Supervisor", "institution": "[University]", "title": "Title of the thesis", "summary": "Summary",
+      "acronyms": "List of Abbreviations", "contents": "Contents", "figures": "List of Figures", "tables": "List of Tables", "bibliography": "References", "list": "List" }
+  },
+  {
+    "id": "american", "babel": "american", "name": "English (US)", "bcp47": "en-US", "aliases": ["USenglish", "american"],
+    "quotes": ["“", "”"], "decimal": ".", "siunitx": "US", "range": " to ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Author", "supervisor": "Advisor", "institution": "[University]", "title": "Title of the thesis", "summary": "Summary",
+      "acronyms": "List of Abbreviations", "contents": "Contents", "figures": "List of Figures", "tables": "List of Tables", "bibliography": "References", "list": "List" }
+  },
+  {
+    "id": "french", "babel": "french", "name": "Français", "bcp47": "fr-FR", "aliases": ["francais", "frenchb", "acadian"],
+    "quotes": ["« ", " »"], "decimal": ",", "siunitx": "FR", "range": " à ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Présenté par", "supervisor": "Sous la direction de", "institution": "[Université]", "title": "Titre du mémoire", "summary": "Résumé",
+      "acronyms": "Liste des abréviations", "contents": "Table des matières", "figures": "Table des figures", "tables": "Liste des tableaux", "bibliography": "Bibliographie", "list": "Liste" }
+  },
+  {
+    "id": "spanish", "babel": "spanish", "name": "Español", "bcp47": "es-ES", "aliases": ["spanish"],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "", "range": " a ", "germanShorthands": false, "babelOptions": ["es-noshorthands", "es-nodecimaldot"], "packageOptions": "",
+    "labels": { "author": "Presentado por", "supervisor": "Dirigido por", "institution": "[Universidad]", "title": "Título del trabajo", "summary": "Resumen",
+      "acronyms": "Lista de abreviaturas", "contents": "Índice", "figures": "Índice de figuras", "tables": "Índice de tablas", "bibliography": "Bibliografía", "list": "Lista" }
+  },
+  {
+    "id": "italian", "babel": "italian", "name": "Italiano", "bcp47": "it-IT", "aliases": [],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "", "range": " a ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Presentato da", "supervisor": "Relatore", "institution": "[Università]", "title": "Titolo della tesi", "summary": "Sommario",
+      "acronyms": "Elenco delle abbreviazioni", "contents": "Indice", "figures": "Elenco delle figure", "tables": "Elenco delle tabelle", "bibliography": "Bibliografia", "list": "Elenco" }
+  },
+  {
+    "id": "portuguese", "babel": "portuguese", "name": "Português (Portugal)", "bcp47": "pt-PT", "aliases": ["portuges", "portugues"],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "", "range": " a ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Apresentado por", "supervisor": "Orientador", "institution": "[Universidade]", "title": "Título do trabalho", "summary": "Resumo",
+      "acronyms": "Lista de abreviaturas", "contents": "Índice", "figures": "Lista de Figuras", "tables": "Lista de Tabelas", "bibliography": "Bibliografia", "list": "Lista" }
+  },
+  {
+    "id": "brazilian", "babel": "brazilian", "name": "Português (Brasil)", "bcp47": "pt-BR", "aliases": ["brazil"],
+    "quotes": ["“", "”"], "decimal": ",", "siunitx": "", "range": " a ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Apresentado por", "supervisor": "Orientador", "institution": "[Universidade]", "title": "Título do trabalho", "summary": "Resumo",
+      "acronyms": "Lista de abreviaturas", "contents": "Sumário", "figures": "Lista de Figuras", "tables": "Lista de Tabelas", "bibliography": "Referências", "list": "Lista" }
+  },
+  {
+    "id": "dutch", "babel": "dutch", "name": "Nederlands", "bcp47": "nl-NL", "aliases": ["flemish"],
+    "quotes": ["“", "”"], "decimal": ",", "siunitx": "", "range": " tot ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Ingediend door", "supervisor": "Begeleider", "institution": "[Hogeschool]", "title": "Titel van de scriptie", "summary": "Samenvatting",
+      "acronyms": "Lijst van afkortingen", "contents": "Inhoudsopgave", "figures": "Lijst van figuren", "tables": "Lijst van tabellen", "bibliography": "Bibliografie", "list": "Lijst" }
+  },
+  {
+    "id": "polish", "babel": "polish", "name": "Polski", "bcp47": "pl-PL", "aliases": [],
+    "quotes": ["„", "”"], "decimal": ",", "siunitx": "PL", "range": " do ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Autor", "supervisor": "Promotor", "institution": "[Uczelnia]", "title": "Tytuł pracy", "summary": "Streszczenie",
+      "acronyms": "Wykaz skrótów", "contents": "Spis treści", "figures": "Spis rysunków", "tables": "Spis tabel", "bibliography": "Bibliografia", "list": "Wykaz" }
+  },
+  {
+    "id": "czech", "babel": "czech", "name": "Čeština", "bcp47": "cs-CZ", "aliases": [],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "", "range": " až ", "germanShorthands": false, "babelOptions": [], "packageOptions": "shorthands=off",
+    "labels": { "author": "Autor", "supervisor": "Vedoucí práce", "institution": "[Vysoká škola]", "title": "Název práce", "summary": "Abstrakt",
+      "acronyms": "Seznam zkratek", "contents": "Obsah", "figures": "Seznam obrázků", "tables": "Seznam tabulek", "bibliography": "Literatura", "list": "Seznam" }
+  },
+  {
+    "id": "slovak", "babel": "slovak", "name": "Slovenčina", "bcp47": "sk-SK", "aliases": [],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "", "range": " až ", "germanShorthands": false, "babelOptions": [], "packageOptions": "shorthands=off",
+    "labels": { "author": "Autor", "supervisor": "Vedúci práce", "institution": "[Vysoká škola]", "title": "Názov práce", "summary": "Abstrakt",
+      "acronyms": "Zoznam skratiek", "contents": "Obsah", "figures": "Zoznam obrázkov", "tables": "Zoznam tabuliek", "bibliography": "Literatúra", "list": "Zoznam" }
+  },
+  {
+    "id": "swedish", "babel": "swedish", "name": "Svenska", "bcp47": "sv-SE", "aliases": [],
+    "quotes": ["”", "”"], "decimal": ",", "siunitx": "", "range": " till ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Författare", "supervisor": "Handledare", "institution": "[Högskola]", "title": "Arbetets titel", "summary": "Sammanfattning",
+      "acronyms": "Förkortningar", "contents": "Innehåll", "figures": "Figurer", "tables": "Tabeller", "bibliography": "Litteraturförteckning", "list": "Förteckning" }
+  },
+  {
+    "id": "danish", "babel": "danish", "name": "Dansk", "bcp47": "da-DK", "aliases": [],
+    "quotes": ["»", "«"], "decimal": ",", "siunitx": "", "range": " til ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Udarbejdet af", "supervisor": "Vejleder", "institution": "[Universitet]", "title": "Opgavens titel", "summary": "Resumé",
+      "acronyms": "Forkortelser", "contents": "Indhold", "figures": "Figurer", "tables": "Tabeller", "bibliography": "Litteratur", "list": "Liste" }
+  },
+  {
+    "id": "norsk", "babel": "norsk", "name": "Norsk (bokmål)", "bcp47": "nb-NO", "aliases": ["norwegian", "bokmal"],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "", "range": " til ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Av", "supervisor": "Veileder", "institution": "[Høgskole]", "title": "Oppgavens tittel", "summary": "Sammendrag",
+      "acronyms": "Forkortelser", "contents": "Innhold", "figures": "Figurer", "tables": "Tabeller", "bibliography": "Bibliografi", "list": "Liste" }
+  },
+  {
+    "id": "finnish", "babel": "finnish", "name": "Suomi", "bcp47": "fi-FI", "aliases": [],
+    "quotes": ["”", "”"], "decimal": ",", "siunitx": "", "range": "–", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Tekijä", "supervisor": "Ohjaaja", "institution": "[Korkeakoulu]", "title": "Työn nimi", "summary": "Tiivistelmä",
+      "acronyms": "Lyhenteet", "contents": "Sisältö", "figures": "Kuvat", "tables": "Taulukot", "bibliography": "Kirjallisuutta", "list": "Luettelo" }
+  },
+  {
+    "id": "turkish", "babel": "turkish", "name": "Türkçe", "bcp47": "tr-TR", "aliases": [],
+    "quotes": ["“", "”"], "decimal": ",", "siunitx": "", "range": "–", "germanShorthands": false, "babelOptions": [], "packageOptions": "shorthands=off",
+    "labels": { "author": "Hazırlayan", "supervisor": "Danışman", "institution": "[Üniversite]", "title": "Tez başlığı", "summary": "Özet",
+      "acronyms": "Kısaltmalar", "contents": "İçindekiler", "figures": "Şekil Listesi", "tables": "Tablo Listesi", "bibliography": "Kaynakça", "list": "Liste" }
+  },
+  {
+    "id": "croatian", "babel": "croatian", "name": "Hrvatski", "bcp47": "hr-HR", "aliases": [],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "", "range": " do ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Autor", "supervisor": "Mentor", "institution": "[Sveučilište]", "title": "Naslov rada", "summary": "Sažetak",
+      "acronyms": "Popis kratica", "contents": "Sadržaj", "figures": "Popis slika", "tables": "Popis tablica", "bibliography": "Literatura", "list": "Popis" }
+  },
+  {
+    "id": "slovene", "babel": "slovene", "name": "Slovenščina", "bcp47": "sl-SI", "aliases": ["slovenian"],
+    "quotes": ["„", "“"], "decimal": ",", "siunitx": "", "range": " do ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Avtor", "supervisor": "Mentor", "institution": "[Univerza]", "title": "Naslov dela", "summary": "Povzetek",
+      "acronyms": "Seznam kratic", "contents": "Kazalo", "figures": "Slike", "tables": "Tabele", "bibliography": "Literatura", "list": "Seznam" }
+  },
+  {
+    "id": "magyar", "babel": "magyar", "name": "Magyar", "bcp47": "hu-HU", "aliases": ["hungarian"],
+    "quotes": ["„", "”"], "decimal": ",", "siunitx": "", "range": "–", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Szerző", "supervisor": "Témavezető", "institution": "[Egyetem]", "title": "A dolgozat címe", "summary": "Összefoglaló",
+      "acronyms": "Rövidítések jegyzéke", "contents": "Tartalomjegyzék", "figures": "Ábrák jegyzéke", "tables": "Táblázatok jegyzéke", "bibliography": "Irodalomjegyzék", "list": "Jegyzék" }
+  },
+  {
+    "id": "romanian", "babel": "romanian", "name": "Română", "bcp47": "ro-RO", "aliases": [],
+    "quotes": ["„", "”"], "decimal": ",", "siunitx": "", "range": "–", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Autor", "supervisor": "Coordonator", "institution": "[Universitate]", "title": "Titlul lucrării", "summary": "Rezumat",
+      "acronyms": "Lista abrevierilor", "contents": "Cuprins", "figures": "Listă de figuri", "tables": "Listă de tabele", "bibliography": "Bibliografie", "list": "Listă" }
+  },
+  {
+    "id": "catalan", "babel": "catalan", "name": "Català", "bcp47": "ca-ES", "aliases": [],
+    "quotes": ["«", "»"], "decimal": ",", "siunitx": "", "range": " a ", "germanShorthands": false, "babelOptions": [], "packageOptions": "",
+    "labels": { "author": "Presentat per", "supervisor": "Director", "institution": "[Universitat]", "title": "Títol del treball", "summary": "Resum",
+      "acronyms": "Llista d'abreviatures", "contents": "Índex", "figures": "Índex de figures", "tables": "Índex de taules", "bibliography": "Bibliografia", "list": "Llista" }
+  }
+]

@@ -1,0 +1,37 @@
+{
+  // VisuTeX debuggen (Ausführen und Debuggen → Konfiguration wählen → F5).
+  // Vorher werden das Rust-Backend gebaut und der Vite-Server gestartet.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "VisuTeX debuggen (Windows)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/src-tauri/target/debug/visutex.exe",
+      "cwd": "${workspaceFolder}/src-tauri",
+      "preLaunchTask": "Debug vorbereiten",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "VisuTeX debuggen (Linux, LLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml", "--bin=visutex"],
+        "filter": { "name": "visutex", "kind": "bin" }
+      },
+      "cwd": "${workspaceFolder}/src-tauri",
+      "preLaunchTask": "Frontend-Server (Vite)"
+    },
+    {
+      "name": "Rust-Kerntests debuggen (LLDB)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["test", "--no-run", "--lib", "--manifest-path=${workspaceFolder}/src-tauri/Cargo.toml"],
+        "filter": { "kind": "lib" }
+      },
+      "cwd": "${workspaceFolder}/src-tauri"
+    }
+  ]
+}

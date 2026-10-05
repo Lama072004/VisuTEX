@@ -1,0 +1,88 @@
+{
+  // VisuTeX – Aufgaben (Terminal → Aufgabe ausführen … bzw. Strg+Umschalt+B)
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "VisuTeX starten (Entwicklung)",
+      "detail": "npm run tauri dev – Frontend mit Hot-Reload und Rust-Backend",
+      "type": "npm",
+      "script": "tauri",
+      "args": ["dev"],
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "Frontend-Server (Vite)",
+      "detail": "Nur die Oberfläche auf http://localhost:1420 (für den Debugger)",
+      "type": "npm",
+      "script": "dev",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": { "regexp": "^x^" },
+        "background": { "activesBegin": ".", "beginsPattern": "VITE", "endsPattern": "Local:" }
+      }
+    },
+    {
+      "label": "Rust bauen (Debug)",
+      "type": "shell",
+      "command": "cargo build",
+      "options": { "cwd": "${workspaceFolder}/src-tauri" },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "Debug vorbereiten",
+      "dependsOn": ["Rust bauen (Debug)", "Frontend-Server (Vite)"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: Frontend",
+      "detail": "TypeScript prüfen und Node-Tests (Schema, Tastenkürzel, Folien)",
+      "type": "shell",
+      "command": "npm run typecheck && npm test",
+      "problemMatcher": ["$tsc"],
+      "group": "test"
+    },
+    {
+      "label": "Tests: Rust-Kern",
+      "detail": "Formatierung, Unit-Tests, Round-Trip und Fremddokumente",
+      "type": "shell",
+      "command": "cargo fmt --check && cargo test --lib && cargo test --test core_roundtrip && cargo test --test foreign_documents",
+      "options": { "cwd": "${workspaceFolder}/src-tauri" },
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "Tests: Kompilieren mit TeX-Bundle",
+      "detail": "Echtes Kompilieren (Dokumente, Folien, Sprachen, Fremddokumente) – dauert einige Minuten",
+      "type": "shell",
+      "command": "cargo test --test compile_pipeline -- --ignored && cargo test --test foreign_documents -- --ignored",
+      "options": { "cwd": "${workspaceFolder}/src-tauri" },
+      "problemMatcher": ["$rustc"],
+      "group": "test"
+    },
+    {
+      "label": "Tests: alle (schnell)",
+      "dependsOn": ["Tests: Frontend", "Tests: Rust-Kern"],
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": { "kind": "test", "isDefault": true }
+    },
+    {
+      "label": "Übersetzungen prüfen",
+      "type": "npm",
+      "script": "i18n",
+      "problemMatcher": []
+    },
+    {
+      "label": "Installer bauen (Release)",
+      "detail": "npm run tauri build – Windows: NSIS/MSI, Linux: deb/rpm/AppImage",
+      "type": "npm",
+      "script": "tauri",
+      "args": ["build"],
+      "problemMatcher": []
+    }
+  ]
+}

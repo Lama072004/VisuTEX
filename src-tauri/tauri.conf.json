@@ -1,0 +1,78 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "VisuTeX",
+  "version": "0.2.0",
+  "identifier": "com.mathias-lampert.visutex",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "VisuTeX",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 900,
+        "minHeight": 600,
+        "dragDropEnabled": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine",
+    "longDescription": "VisuTeX bearbeitet LaTeX-Dokumente visuell wie ein Textverarbeitungsprogramm und zugleich als portablen LaTeX-Code. Die TeX-Engine (Tectonic) und alle benötigten Pakete sind enthalten.",
+    "resources": {
+      "resources": "resources",
+      "../LICENSE": "licenses/LICENSE.txt",
+      "../THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md",
+      "../licenses/GPL-2.0.txt": "licenses/GPL-2.0.txt"
+    },
+    "copyright": "© 2026 Mathias Lampert – MIT (Quellcode), siehe THIRD_PARTY_NOTICES.md",
+    "publisher": "Mathias Lampert",
+    "license": "MIT AND GPL-2.0-or-later",
+    "licenseFile": "../LICENSE",
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "offlineInstaller", "silent": true },
+      "nsis": {
+        "installMode": "both",
+        "languages": ["German", "English", "French", "Spanish", "Italian", "Portuguese", "Dutch", "Polish"],
+        "displayLanguageSelector": true
+      }
+    },
+    "linux": {
+      "deb": {
+        "section": "text",
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "fontconfig"]
+      },
+      "rpm": {
+        "depends": ["webkit2gtk4.1", "gtk3", "fontconfig"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

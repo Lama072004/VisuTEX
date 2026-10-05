@@ -1,0 +1,170 @@
+{
+  "format": "visutex-slides",
+  "version": 1,
+  "title": "Beispielvortrag",
+  "subtitle": "Folien-Editor",
+  "author": "Erika Beispiel",
+  "date": "Oktober 2026",
+  "language": "ngerman",
+  "aspect": "16:9",
+  "theme": { "background": "#ffffff", "textColor": "#1f2937", "accent": "#2563eb", "font": "sans" },
+  "grid": { "size": 5, "snap": true, "show": true, "guides": true },
+  "slides": [
+    {
+      "id": "s1",
+      "background": "",
+      "notes": "Begrüßung und Thema vorstellen.",
+      "hidden": false,
+      "elements": [
+        {
+          "id": "e1",
+          "kind": "shape",
+          "shape": "rect",
+          "x": 0, "y": 0, "w": 160, "h": 6,
+          "fill": "#2563eb", "stroke": "", "strokeWidth": 0
+        },
+        {
+          "id": "e2",
+          "kind": "text",
+          "role": "title",
+          "x": 15, "y": 25, "w": 130, "h": 22,
+          "fontSize": 36, "verticalAlign": "bottom",
+          "content": { "type": "doc", "content": [
+            { "type": "paragraph", "attrs": { "textAlign": "center" }, "content": [
+              { "type": "text", "marks": [{ "type": "bold" }], "text": "Beispielvortrag" }
+            ] }
+          ] }
+        },
+        {
+          "id": "e3",
+          "kind": "text",
+          "role": "subtitle",
+          "x": 25, "y": 50, "w": 110, "h": 14,
+          "fontSize": 20, "color": "#6b7280",
+          "content": { "type": "doc", "content": [
+            { "type": "paragraph", "attrs": { "textAlign": "center" }, "content": [
+              { "type": "text", "text": "Folien frei gestalten – Export als LaTeX-Beamer" }
+            ] }
+          ] }
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "background": "",
+      "notes": "",
+      "hidden": false,
+      "elements": [
+        {
+          "id": "e4",
+          "kind": "text",
+          "role": "title",
+          "x": 10, "y": 6, "w": 140, "h": 14,
+          "fontSize": 28, "verticalAlign": "middle", "color": "#2563eb",
+          "content": { "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Inhalt mit Aufzählung" }] }
+          ] }
+        },
+        {
+          "id": "e5",
+          "kind": "text",
+          "role": "body",
+          "x": 10, "y": 24, "w": 80, "h": 56,
+          "fontSize": 18,
+          "content": { "type": "doc", "content": [
+            { "type": "bulletList", "content": [
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [
+                { "type": "text", "text": "Text mit " },
+                { "type": "text", "marks": [{ "type": "italic" }], "text": "Formatierung" },
+                { "type": "text", "text": " und " },
+                { "type": "text", "marks": [{ "type": "textStyle", "attrs": { "color": "#c00000" } }], "text": "Farbe" }
+              ] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [
+                { "type": "text", "text": "Formel im Text: " },
+                { "type": "inlineMath", "attrs": { "latex": "E = mc^2" } }
+              ] }] },
+              { "type": "listItem", "content": [{ "type": "paragraph", "content": [
+                { "type": "text", "marks": [{ "type": "underline" }], "text": "Unterstrichen" }
+              ] }] }
+            ] }
+          ] }
+        },
+        {
+          "id": "e6",
+          "kind": "shape",
+          "shape": "roundRect",
+          "x": 100, "y": 26, "w": 45, "h": 22, "rotation": 8,
+          "fill": "#dbeafe", "stroke": "#2563eb", "strokeWidth": 1.5,
+          "fontSize": 16, "verticalAlign": "middle",
+          "content": { "type": "doc", "content": [
+            { "type": "paragraph", "attrs": { "textAlign": "center" }, "content": [{ "type": "text", "text": "Form mit Text" }] }
+          ] }
+        },
+        {
+          "id": "e7",
+          "kind": "shape",
+          "shape": "arrow",
+          "x": 95, "y": 55, "w": 30, "h": 15,
+          "stroke": "#1f2937", "strokeWidth": 2
+        },
+        {
+          "id": "e8",
+          "kind": "formula",
+          "x": 115, "y": 62, "w": 40, "h": 18,
+          "latex": "\\int_0^1 x^2\\,\\mathrm{d}x = \\frac{1}{3}",
+          "fontSize": 18
+        },
+        {
+          "id": "e9",
+          "kind": "shape",
+          "shape": "ellipse",
+          "x": 135, "y": 74, "w": 12, "h": 12,
+          "fill": "#f59e0b"
+        },
+        {
+          "id": "e10",
+          "kind": "image",
+          "x": 95, "y": 72, "w": 12, "h": 12,
+          "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAGklEQVR4nGNQTX79dR43hGSAs1STXzPglAEAf0IYiZt0O6wAAAAASUVORK5CYII="
+        },
+        {
+          "id": "e11",
+          "kind": "image",
+          "x": 110, "y": 82, "w": 8, "h": 6,
+          "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCAzMCIgd2lkdGg9IjQwIiBoZWlnaHQ9IjMwIj48cmVjdCB3aWR0aD0iNDAiIGhlaWdodD0iMzAiIGZpbGw9IiMyNTYzZWIiLz48Y2lyY2xlIGN4PSIyMCIgY3k9IjE1IiByPSIxMCIgZmlsbD0iI2ZmZiIvPjwvc3ZnPg=="
+        }
+      ]
+    },
+    {
+      "id": "s3",
+      "background": "#0f172a",
+      "notes": "",
+      "hidden": false,
+      "elements": [
+        {
+          "id": "e12",
+          "kind": "text",
+          "x": 20, "y": 35, "w": 120, "h": 20,
+          "fontSize": 32, "color": "#ffffff", "verticalAlign": "middle",
+          "content": { "type": "doc", "content": [
+            { "type": "paragraph", "attrs": { "textAlign": "center" }, "content": [{ "type": "text", "text": "Vielen Dank!" }] }
+          ] }
+        },
+        {
+          "id": "e13",
+          "kind": "shape",
+          "shape": "line",
+          "x": 50, "y": 60, "w": 60, "h": 0,
+          "stroke": "#f59e0b", "strokeWidth": 2
+        },
+        {
+          "id": "e14",
+          "kind": "shape",
+          "shape": "triangle",
+          "x": 74, "y": 66, "w": 12, "h": 10, "rotation": 180,
+          "fill": "#f59e0b"
+        }
+      ]
+    }
+  ]
+}

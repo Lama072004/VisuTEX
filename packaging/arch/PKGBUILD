@@ -1,0 +1,27 @@
+# Arch Linux / Manjaro / EndeavourOS: Paket aus dem fertigen .deb der CI.
+#
+#   1. VisuTeX_<version>_amd64.deb (aus den CI-Artefakten bzw. dem Release) in
+#      diesen Ordner kopieren
+#   2. makepkg -si
+#
+# Die TeX-Engine (Tectonic) und das TeX-Bundle sind enthalten – es wird keine
+# TeX-Distribution benötigt.
+pkgname=visutex-bin
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine"
+arch=('x86_64')
+url="https://github.com/"
+license=('custom')
+depends=('webkit2gtk-4.1' 'gtk3' 'fontconfig' 'hicolor-icon-theme')
+provides=('visutex')
+conflicts=('visutex')
+options=('!strip' '!debug')
+source=("VisuTeX_${pkgver}_amd64.deb")
+sha256sums=('SKIP')
+
+package() {
+  bsdtar -xf data.tar.* -C "${pkgdir}"
+  # Rechte normalisieren (deb-Inhalte können 0775 haben)
+  find "${pkgdir}" -type d -exec chmod 755 {} +
+}

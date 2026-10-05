@@ -1,0 +1,19 @@
+# Gilt für Windows, Linux und macOS gleichermaßen – keine rechnerspezifischen Pfade.
+#
+# Tectonic (eingebaute TeX-Engine) bezieht seine C-Bibliotheken (ICU, HarfBuzz,
+# FreeType, Graphite2, Fontconfig) über vcpkg. Einmalig im Ordner src-tauri:
+#   cargo install cargo-vcpkg
+#   cargo vcpkg build
+# Das legt einen statischen vcpkg-Baum unter src-tauri/target/vcpkg an, den
+# vcpkg-rs automatisch findet. Alternativ ein vorhandenes vcpkg per
+# Umgebungsvariable VCPKG_ROOT (+ ggf. VCPKGRS_TRIPLET) angeben.
+#
+# Linux/macOS mit Systembibliotheken statt vcpkg (nur Entwicklung):
+#   TECTONIC_DEP_BACKEND=pkg-config  (Umgebungsvariablen haben Vorrang vor [env])
+[env]
+TECTONIC_DEP_BACKEND = "vcpkg"
+
+# Windows: statische C-Laufzeit – passt zu den statischen vcpkg-Bibliotheken und
+# macht das Visual-C++-Redistributable beim Anwender überflüssig.
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

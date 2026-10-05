@@ -1,0 +1,40 @@
+# Abhängigkeiten und Build-Ausgaben
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+# rechnerspezifisch (von npm run setup erzeugt)
+src-tauri/.cargo/
+
+# LaTeX-Hilfsdateien (z. B. von vorlage_fhv_v7.tex)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.lot
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+
+# Editor/OS
+.DS_Store
+Thumbs.db
+*.visutex-tmp
+
+# Private Testdokumente und Vorlagen (nicht veröffentlichen)
+/Vorlagen_Test_TEX/
+/vorlage_fhv_v7.*
+/pdfa.xmpi
+/*.xmpi
+# Lokale Claude-/Editor-Einstellungen
+/.claude/
+/.vscode/*
+!/.vscode/extensions.json
+!/.vscode/tasks.json
+!/.vscode/launch.json
+/.idea/

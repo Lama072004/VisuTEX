@@ -1,0 +1,187 @@
+# VisuTeX – Build und Tests auf Windows und Linux.
+# Baut die nativen TeX-Bibliotheken statisch (cargo vcpkg), testet Rust-Kern,
+# Frontend und das echte Kompilieren mit dem mitgelieferten TeX-Bundle (offline)
+# und erzeugt die Installationspakete:
+#   Windows: NSIS (.exe) und MSI – WebView2 ist offline enthalten
+#   Linux:   .deb (Debian/Ubuntu/Mint), .rpm (Fedora/RHEL), .AppImage (alle Distributionen)
+# Anschließend werden die Linux-Pakete auf mehreren Distributionen installiert
+# und auf fehlende Bibliotheken geprüft.
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          # Ältestes unterstütztes System: glibc 2.35 / WebKitGTK 4.1
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux-Systempakete (Tauri/WebKitGTK und vcpkg-Werkzeuge)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            libappindicator3-dev librsvg2-dev patchelf build-essential pkg-config rpm file \
+            autoconf autoconf-archive automake libtool bison gperf python3 python3-venv
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.target }}
+
+      - name: vcpkg-Cache
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/vcpkg
+          key: vcpkg-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.toml') }}
+
+      - name: Native Bibliotheken bauen (cargo vcpkg)
+        working-directory: src-tauri
+        run: |
+          cargo install cargo-vcpkg --locked
+          cargo vcpkg -v build --target ${{ matrix.target }}
+
+      - name: Frontend – Abhängigkeiten, Tests, Build
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: Rust – Format und Tests
+        working-directory: src-tauri
+        run: |
+          cargo fmt --check
+          cargo test --lib
+          cargo test --test core_roundtrip
+          cargo test --test foreign_documents
+          cargo test --test compile_pipeline -- --ignored --nocapture --test-threads=1
+
+      - name: Exportiertes Volltest-Dokument für den TeX-Live-Test sichern
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: visutex-roundtrip
+          path: src-tauri/target/visutex-roundtrip
+          if-no-files-found: error
+
+      - name: Installationspakete erzeugen
+        run: npx tauri build --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: visutex-${{ matrix.target }}
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*-setup.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
+          if-no-files-found: error
+
+  # Portabilität: das exportierte Dokument muss mit TeX Live auf allen drei Engines
+  # (inkl. BibTeX) kompilieren – unabhängig vom mitgelieferten Bundle.
+  latex-engines:
+    needs: build
+    runs-on: ubuntu-latest
+    container: texlive/texlive:latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: visutex-roundtrip
+          path: roundtrip
+      - name: pdfLaTeX, XeLaTeX und LuaLaTeX
+        shell: bash
+        run: bash scripts/check-latex-engines.sh roundtrip doc
+
+  # Frische Installation auf verschiedenen Distributionen: Paket installieren und
+  # prüfen, dass alle Bibliotheken gefunden werden (ohne weitere Schritte).
+  linux-distributionen:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu:22.04
+            kind: deb
+          - image: ubuntu:24.04
+            kind: deb
+          - image: debian:12
+            kind: deb
+          - image: linuxmintd/mint22-amd64
+            kind: deb
+          - image: fedora:40
+            kind: rpm
+          - image: archlinux:latest
+            kind: arch
+          - image: opensuse/tumbleweed
+            kind: appimage
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: visutex-x86_64-unknown-linux-gnu
+          path: pakete
+      - name: Installieren und Bibliotheken prüfen
+        shell: bash
+        run: |
+          set -euo pipefail
+          deb=$(find pakete -name '*.deb' | head -n1)
+          rpm=$(find pakete -name '*.rpm' | head -n1)
+          appimage=$(find pakete -name '*.AppImage' | head -n1)
+          case "${{ matrix.kind }}" in
+            deb)
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y "./$deb"
+              binary=$(find /usr/bin -maxdepth 1 -iname visutex | head -n1) ;;
+            rpm)
+              dnf install -y "./$rpm"
+              binary=$(find /usr/bin -maxdepth 1 -iname visutex | head -n1) ;;
+            arch)
+              pacman -Syu --noconfirm --needed base-devel binutils webkit2gtk-4.1 gtk3 fontconfig
+              useradd -m bauer
+              cp "$deb" packaging/arch/
+              chown -R bauer packaging/arch
+              su bauer -c "cd packaging/arch && makepkg --noconfirm --skipchecksums"
+              pacman -U --noconfirm packaging/arch/*.pkg.tar.zst
+              binary=$(find /usr/bin -maxdepth 1 -iname visutex | head -n1) ;;
+            appimage)
+              zypper --non-interactive install file
+              chmod +x "$appimage"
+              cd /tmp && "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
+              binary=$(find /tmp/squashfs-root/usr/bin -maxdepth 1 -iname visutex | head -n1)
+              export LD_LIBRARY_PATH=/tmp/squashfs-root/usr/lib ;;
+          esac
+          test -x "$binary"
+          if ldd "$binary" | grep "not found"; then
+            echo "Fehlende Bibliotheken auf ${{ matrix.image }}"; exit 1
+          fi
+          # Mitgeliefertes TeX-Bundle vorhanden?
+          find / -name tex-bundle.zip -path '*resources*' 2>/dev/null | grep -q .
+          echo "OK: ${{ matrix.image }}"

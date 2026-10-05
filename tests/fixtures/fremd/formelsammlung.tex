@@ -1,0 +1,45 @@
+% Synthetisches Testdokument: Formelsammlung im Querformat mit eigenen Boxen,
+% mehrspaltigem Satz, eigenen Makros und tabbing.
+\documentclass[a4paper,9pt,landscape]{extarticle}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,bm}
+\usepackage[margin=8mm]{geometry}
+\usepackage{multicol}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+
+\newtcolorbox{formelbox}[1]{colback=gray!5, colframe=gray!60, title={#1}, fonttitle=\bfseries}
+\newcommand{\teil}[1]{\textbf{#1)}~}
+\DeclareMathOperator{\rot}{rot}
+\setlength{\parindent}{0pt}
+
+\begin{document}
+\begin{multicols*}{3}
+\section*{Elektromagnetische Felder}
+
+\begin{formelbox}{Maxwell-Gleichungen}
+$\rot \vec{E} = -\dfrac{\partial \vec{B}}{\partial t}$\quad $\operatorname{div} \vec{B} = 0$\\[2pt]
+\teil{a} Induktion \teil{b} Quellenfreiheit
+\end{formelbox}
+
+\begin{formelbox}{Größen}
+\begin{tabbing}
+\hspace*{1.5cm} \= \kill
+$\varepsilon_0$ \> Feldkonstante \\
+$\mu_0$ \> Permeabilität
+\end{tabbing}
+\end{formelbox}
+
+\begin{center}
+\begin{tikzpicture}
+\draw[->] (0,0) -- (2,0) node[right] {$x$};
+\draw[->] (0,0) -- (0,1.5) node[above] {$y$};
+\end{tikzpicture}
+\end{center}
+
+\columnbreak
+\section*{Wellen}
+Wellenzahl $k = 2\pi/\lambda$.
+\end{multicols*}
+\end{document}

@@ -1,0 +1,87 @@
+% Synthetisches Testdokument im Stil eines klassischen pdfLaTeX-Laborberichts
+% (inputenc/T1, siunitx, booktabs, enumitem, tcolorbox, listings, thebibliography).
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\newcommand{\Rges}{R_{\mathrm{ges}}}
+\newcommand{\messwert}[1]{\textbf{#1}}
+
+\title{Laborbericht: Spannungsteiler}
+\author{Erika Beispiel \and Max Muster}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Dieser Bericht untersucht einen unbelasteten Spannungsteiler mit $\Rges = \SI{10}{\kilo\ohm}$.
+\end{abstract}
+
+\section{Aufgabenstellung}
+\begin{itemize}[leftmargin=1.5em]
+  \item Aufbau der Schaltung mit \SI{4.7}{\kilo\ohm} und \SI{5.3}{\kilo\ohm}.
+  \item Messung bei \SI{12}{\volt} Versorgungsspannung.
+\end{itemize}
+
+\begin{enumerate}
+  \item[a)] Berechnen Sie die Teilspannung.
+  \item[b)] Vergleichen Sie mit dem \messwert{Messwert}.
+\end{enumerate}
+
+\vspace{0.5cm}
+
+\section{Messung}
+Die Ergebnisse zeigt Tabelle~\ref{tab:messung}.\quad Abweichungen sind gering.
+
+\begin{table}[H]
+\centering
+\caption{Messwerte}
+\label{tab:messung}
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Größe & Rechnung & Messung \\
+\midrule
+$U_1$ & \SI{5.64}{\volt} & \SI{5.61}{\volt} \\
+$U_2$ & \SI{6.36}{\volt} & \SI{6.40}{\volt} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.6\textwidth]{abbildungen/aufbau}
+  \caption{Messaufbau mit $R_1$ und $R_2$}
+  \label{fig:aufbau}
+\end{figure}
+
+\begin{tcolorbox}[title={Ergebnis}, colback=blue!5!white, colframe=blue!60!black]
+\begin{align}
+U_2 &= U \cdot \frac{R_2}{R_1 + R_2} \\
+    &= \SI{6.36}{\volt}
+\end{align}
+\end{tcolorbox}
+
+\section{Auswertung}
+\begin{lstlisting}[language=Python, caption={Auswertung}]
+r1, r2 = 4.7e3, 5.3e3
+print(12 * r2 / (r1 + r2))
+\end{lstlisting}
+
+\begin{thebibliography}{9}
+\bibitem{tietze} U.~Tietze, C.~Schenk: \textit{Halbleiter-Schaltungstechnik}. Springer.
+\end{thebibliography}
+\end{document}

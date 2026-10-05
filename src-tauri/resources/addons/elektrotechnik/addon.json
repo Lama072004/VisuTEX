@@ -1,0 +1,25 @@
+{
+  "id": "elektrotechnik",
+  "name": "Elektrotechnik",
+  "version": "1.0.0",
+  "author": "VisuTeX",
+  "description": "SI-Einheiten (siunitx) und CircuiTikZ-Schaltungsbausteine für technische Arbeiten.",
+  "texFiles": ["tex/visutex-et.sty"],
+  "preamble": ["\\usepackage{siunitx}", "\\usepackage{visutex-et}"],
+  "snippets": [
+    { "id": "si-wert", "name": "Wert mit Einheit", "group": "Einheiten", "kind": "inline", "latex": "\\SI{230}{\\volt}" },
+    { "id": "si-einheit", "name": "Einheit", "group": "Einheiten", "kind": "inline", "latex": "\\si{\\kilo\\watt\\hour}" },
+    { "id": "ohmsches-gesetz", "name": "Ohmsches Gesetz", "group": "Formeln", "kind": "math", "latex": "U = R \\cdot I" },
+    { "id": "leistung", "name": "Wirkleistung", "group": "Formeln", "kind": "math", "latex": "P = U \\cdot I \\cdot \\cos\\varphi" },
+    { "id": "spannungsteiler", "name": "Spannungsteiler", "group": "Schaltungen", "kind": "tikz", "latex": "\\draw (0,0) to[V, v=$U_0$] (0,3) to[R, l=$R_1$] (3,3) to[R, l=$R_2$] (3,0) -- (0,0);" },
+    { "id": "rc-glied", "name": "RC-Glied", "group": "Schaltungen", "kind": "tikz", "latex": "\\draw (0,0) to[sV, v=$u_e$] (0,3) to[R, l=$R$] (3,3) to[C, l=$C$, v=$u_a$] (3,0) -- (0,0);" },
+    { "id": "drehstrom", "name": "Drehstrom-Symbol", "group": "Einheiten", "kind": "inline", "latex": "\\drehstrom{}" }
+  ],
+  "ribbon": [
+    { "group": "Elektrotechnik", "label": "Wert + Einheit", "icon": "Ω", "snippet": "si-wert" },
+    { "group": "Elektrotechnik", "label": "Ohmsches Gesetz", "icon": "U=RI", "snippet": "ohmsches-gesetz" },
+    { "group": "Elektrotechnik", "label": "Spannungsteiler", "icon": "⏚", "snippet": "spannungsteiler" },
+    { "group": "Elektrotechnik", "label": "RC-Glied", "icon": "RC", "snippet": "rc-glied" }
+  ],
+  "templates": []
+}

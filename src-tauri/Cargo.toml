@@ -1,0 +1,102 @@
+[package]
+name = "visutex"
+version = "0.2.0"
+description = "VisuTeX – WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine"
+authors = ["Mathias Lampert"]
+license = "MIT"
+readme = "../README.md"
+keywords = ["latex", "wysiwyg", "editor", "tectonic", "tauri"]
+edition = "2021"
+default-run = "visutex"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "visutex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "visutex"
+path = "src/main.rs"
+
+# Erzeugt das mitgelieferte TeX-Bundle aus einer lokalen TeX-Installation (nur Entwicklung).
+[[bin]]
+name = "build-tex-bundle"
+path = "src/bin/build_tex_bundle.rs"
+required-features = ["dev-tools"]
+
+# Erzeugt resources/sketch-symbols.json (Symbole des Skizzier-Werkzeugs, nur Entwicklung).
+[[bin]]
+name = "build-sketch-symbols"
+path = "src/bin/build_sketch_symbols.rs"
+required-features = ["dev-tools"]
+
+[features]
+default = []
+dev-tools = []
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.23.1"
+# Prüfsummen für Dateinamen eingebetteter Bilder (VisuTeX-Kern)
+sha2 = "0.10"
+tectonic = "0.17.0"
+# Sicherheitseinstellungen (zusätzliche Suchpfade für Add-on-TeX-Dateien)
+tectonic_bridge_core = "0.5"
+# Mitgeliefertes TeX-Bundle (ZIP) und Status-Ausgaben
+tectonic_bundles = { version = "0.4", default-features = false }
+tectonic_io_base = "0.6"
+tectonic_status_base = "0.2"
+tectonic_errors = "0.3"
+# PDF-Seiten in reinem Rust rendern (Vorschau ohne PDF-Viewer im WebView)
+hayro = "0.7"
+# Bildkonvertierung beim Einfügen (GIF/WebP/BMP/TIFF → PNG)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
+# SVG → PDF beim Einfügen von Vektorgrafiken
+svg2pdf = "0.13"
+# Add-ons als ZIP installieren, TeX-Bundle lesen/schreiben
+zip = { version = "8", default-features = false, features = ["deflate"] }
+# Zotero (lokale API / Better BibTeX) – Anfragen aus Rust, kein Browser-CORS
+reqwest = { version = "0.13", default-features = false, features = ["blocking"] }
+
+[dev-dependencies]
+
+# Abhängigkeiten (v. a. die C-Engine von Tectonic, hayro, image) auch im
+# Debug-Build optimieren – sonst dauert jedes Kompilieren in `tauri dev` ein Vielfaches.
+[profile.dev.package."*"]
+opt-level = 2
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true
+
+# Native Bibliotheken der TeX-Engine (Tectonic) – auf allen Plattformen gleich:
+#   cargo install cargo-vcpkg   (einmalig)
+#   cargo vcpkg build           (im Ordner src-tauri; legt target/vcpkg an)
+# Alle Triplets sind statisch → keine DLLs/dylibs im Installer nötig.
+# macOS braucht kein fontconfig (Tectonic nutzt dort CoreText).
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "10541e317a660f4165ba4ac2851ab54a8d4577b1"
+
+[package.metadata.vcpkg.target]
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static", install = ["fontconfig", "freetype", "harfbuzz[graphite2]", "icu"] }
+aarch64-pc-windows-msvc = { triplet = "arm64-windows-static", install = ["fontconfig", "freetype", "harfbuzz[graphite2]", "icu"] }
+x86_64-unknown-linux-gnu = { install = ["fontconfig", "freetype", "harfbuzz[graphite2]", "icu"] }
+aarch64-unknown-linux-gnu = { install = ["fontconfig", "freetype", "harfbuzz[graphite2]", "icu"] }
+x86_64-apple-darwin = { install = ["freetype", "harfbuzz[graphite2]", "icu"] }
+aarch64-apple-darwin = { triplet = "arm64-osx", install = ["freetype", "harfbuzz[graphite2]", "icu"] }
