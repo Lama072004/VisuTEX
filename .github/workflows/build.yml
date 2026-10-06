@@ -63,7 +63,7 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: vcpkg-Cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: src-tauri/target/vcpkg
           key: vcpkg-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.toml') }}
@@ -95,7 +95,7 @@ jobs:
 
       - name: Exportiertes Volltest-Dokument für den TeX-Live-Test sichern
         if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: visutex-roundtrip
           path: src-tauri/target/visutex-roundtrip
@@ -108,7 +108,7 @@ jobs:
         if: runner.os == 'Windows'
         run: node scripts/portable.mjs --target ${{ matrix.target }} --zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: visutex-${{ matrix.target }}
           path: |
@@ -128,7 +128,7 @@ jobs:
     container: texlive/texlive:latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: visutex-roundtrip
           path: roundtrip
@@ -162,7 +162,7 @@ jobs:
     container: ${{ matrix.image }}
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: visutex-x86_64-unknown-linux-gnu
           path: pakete
@@ -177,6 +177,7 @@ jobs:
           deb=$(find pakete -name '*.deb' | head -n1)
           rpm=$(find pakete -name '*.rpm' | head -n1)
           appimage=$(find pakete -name '*.AppImage' | head -n1)
+          libpath=""
           case "${{ matrix.kind }}" in
             deb)
               apt-get update
@@ -195,13 +196,22 @@ jobs:
               binary=$(find /usr/bin -maxdepth 1 -iname visutex | head -n1) ;;
             appimage)
               zypper --non-interactive install file
+              # Bibliotheken, die AppImages bewusst nicht mitbringen (offizielle „excludelist“:
+              # Grafiktreiber, X11, Schriften) – auf jedem Linux-Desktop vorhanden, im minimalen
+              # Container nicht. Wie auf einem Desktop nachinstallieren (über die Sonames).
+              zypper --non-interactive install \
+                'libX11.so.6()(64bit)' 'libX11-xcb.so.1()(64bit)' 'libxcb.so.1()(64bit)' \
+                'libfontconfig.so.1()(64bit)' 'libfreetype.so.6()(64bit)' 'libharfbuzz.so.0()(64bit)' \
+                'libfribidi.so.0()(64bit)' 'libexpat.so.1()(64bit)' 'libcom_err.so.2()(64bit)' \
+                'libGL.so.1()(64bit)' 'libEGL.so.1()(64bit)' 'libgbm.so.1()(64bit)' 'libdrm.so.2()(64bit)'
               chmod +x "$appimage"
               cd /tmp && "$GITHUB_WORKSPACE/$appimage" --appimage-extract >/dev/null
               binary=$(find /tmp/squashfs-root/usr/bin -maxdepth 1 -iname visutex | head -n1)
-              export LD_LIBRARY_PATH=/tmp/squashfs-root/usr/lib ;;
+              # nur für ldd – sonst lädt auch grep die Bibliotheken aus dem AppImage
+              libpath=/tmp/squashfs-root/usr/lib ;;
           esac
           test -x "$binary"
-          if ldd "$binary" | grep "not found"; then
+          if LD_LIBRARY_PATH="$libpath" ldd "$binary" | grep "not found"; then
             echo "Fehlende Bibliotheken auf ${{ matrix.image }}"; exit 1
           fi
           # Mitgeliefertes TeX-Bundle vorhanden? (nur Installationsordner durchsuchen – `find /`
@@ -219,7 +229,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           pattern: visutex-*-*
           path: pakete
@@ -228,7 +238,7 @@ jobs:
           mkdir -p upload
           find pakete -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*-portable.zip' \) -exec cp {} upload/ \;
           ls -la upload
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: upload/*
           draft: true
