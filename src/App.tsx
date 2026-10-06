@@ -23,6 +23,8 @@ import type { PageInfo } from "./editor/pagination";
 import { invalidatePreviews, setPreviewPreambleProvider } from "./editor/latexPreview";
 import { RUNTIME_META } from "./editor/nodeViews";
 import { frontmatterKinds, frontmatterTitles, subfigureDefaultPercent } from "./editor/schema";
+import { newComment } from "./editor/comments";
+import { useCtrlWheel } from "./components/useCtrlWheel";
 import type { FrontmatterKind } from "./editor/schema";
 import { languageInfo, loadLanguage, systemLanguage, translate } from "./i18n";
 import type { UiLanguage } from "./i18n";
@@ -1603,7 +1605,14 @@ function Workspace() {
       const value = await acronymForm();
       if (value) editor?.chain().focus().insertContent({ type: "acronym", attrs: value }).run();
     },
-    insertRawLatex: () => editor?.chain().focus().insertContent({ type: "rawLatexBlock", attrs: { rawLatex: "% LaTeX-Code\n" } }).run(),
+    insertRawLatex: () => editor?.chain().focus().insertContent({ type: "rawLatexBlock", attrs: { rawLatex: "" } }).run(),
+    insertComment: () => {
+      if (!editor) return;
+      // nach dem aktuellen Block einfügen (nicht mitten im Absatz – das würde ihn teilen)
+      const { $from } = editor.state.selection;
+      const pos = $from.depth > 0 ? $from.after(1) : editor.state.selection.to;
+      editor.chain().focus().insertContentAt(pos, { type: "rawLatexBlock", attrs: { rawLatex: newComment(t("Kommentar")) } }).run();
+    },
     insertQuantity: async () => {
       const value = await quantityForm();
       if (value) editor?.chain().focus().insertContent({ type: "quantity", attrs: { command: value.command, value: value.value, value2: value.value2, unit: value.unit } }).run();
@@ -1950,6 +1959,11 @@ function Workspace() {
   }, [mode, backstage]);
 
   const zoom = view.zoom / 100;
+  // Strg + Mausrad (bzw. Touchpad-Zoom) im Dokument: in 10-%-Schritten wie im Menüband
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  useCtrlWheel(scrollerRef, (direction) =>
+    setView((value) => ({ ...value, zoom: Math.min(200, Math.max(50, value.zoom + direction * 10)) })),
+  );
   const paged = geometry.enabled;
   const pageWidthPx = dimensions.width * MM;
   const pageCount = paged ? pages.length : 1;
@@ -2086,7 +2100,7 @@ function Workspace() {
               }}
             />
           )}
-          <div className="document-scroller" style={{ display: mode === "visual" ? undefined : "none" }}>
+          <div className="document-scroller" ref={scrollerRef} style={{ display: mode === "visual" ? undefined : "none" }}>
             {view.showRuler && (
               <Ruler
                 pageWidthMm={dimensions.width}
@@ -2097,7 +2111,7 @@ function Workspace() {
                 onChange={({ left, right }) => updateSettings({ margins: { ...settings.margins, left, right } })}
               />
             )}
-            <div className="paper-outer" style={{ width: pageWidthPx * zoom, height: paperHeight ? paperHeight * zoom : undefined }}>
+            <div className="paper-outer" style={{ width: pageWidthPx * zoom, height: paperHeight ? paperHeight * zoom : undefined, ["--zoom" as string]: zoom }}>
               <div ref={paperRef} data-doc-lang={settings.language} className={`paper${paged ? " paged" : " continuous"} ${numberingClass}`} style={{ ...paperStyle, transform: zoom === 1 ? undefined : `scale(${zoom})` }}>
                 {paged && (
                   <PageCanvas
@@ -2155,7 +2169,11 @@ function Workspace() {
         <span className="spacer" />
         <span>{appInfo?.bundle.kind === "online" ? t("TeX: Online-Bundle") : appInfo ? t("TeX: offline") : ""}</span>
         <label className="zoom-control">
-          <input type="range" min={50} max={200} step={10} value={view.zoom} onChange={(event) => setView((value) => ({ ...value, zoom: Number(event.currentTarget.value) }))} aria-label={t("Zoom")} />
+          <input type="range" min={50} max={200} step={10} value={view.zoom} onChange={(event) => {
+            // Wert sofort lesen – im verzögerten Updater ist event.currentTarget bereits null (Absturz)
+            const zoom = Number(event.currentTarget.value);
+            setView((value) => ({ ...value, zoom }));
+          }} aria-label={t("Zoom")} />
           {view.zoom}%
         </label>
       </footer>

@@ -96,10 +96,4 @@ export function requestPreview(latex: string): Promise<BlockPreview> {
   return promise;
 }
 
-/** Nur Kommentare bzw. Leerraum – keine Vorschau nötig. */
-export function isCommentOnly(latex: string): boolean {
-  return latex.split("\n").every((line) => {
-    const trimmed = line.trim();
-    return trimmed === "" || trimmed.startsWith("%");
-  });
-}
+export { isCommentOnly } from "./comments";

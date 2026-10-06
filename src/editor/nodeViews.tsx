@@ -13,6 +13,7 @@ import { latexToHtml, renderMath } from "../latex/miniRender";
 import { formatQuantity } from "../latex/siunitx";
 import { getRuntime, renderContext, useRuntime } from "../state/runtime";
 import { cachedPreview, isCommentOnly, requestPreview } from "./latexPreview";
+import { commentText, isDividerOnly, replaceCommentText } from "./comments";
 import { frontmatterTitles, subfigureDefaultPercent, titlePageFields } from "./schema";
 import type { FrontmatterKind, SubfigureItem, TitlePageField } from "./schema";
 import { documentLanguage } from "../latex/languages";
@@ -753,7 +754,72 @@ export function DirectoryView({ node, editor, selected, updateAttributes }: Reac
  * Umgebungen …); „Code bearbeiten“ bzw. Doppelklick öffnet den Quelltext.
  * Reine Kommentarblöcke erscheinen als dezente Notiz.
  */
-export function RawLatexBlockView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+/**
+ * LaTeX-Kommentar als Randkommentar (wie in Word): nimmt im Text keinen Platz ein (im PDF
+ * unsichtbar), die Sprechblase steht rechts neben der Seite. Klick bearbeitet, ✕ löscht.
+ * Reine Trennlinien (`% =====`) werden nicht angezeigt; der Code bleibt unverändert erhalten.
+ */
+function LatexCommentBalloon({ raw, selected, onChange, onDelete }: { raw: string; selected: boolean; onChange: (raw: string) => void; onDelete: () => void }) {
+  const t = useT();
+  const text = commentText(raw);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+  useEffect(() => setDraft(text), [text]);
+  const textareaRef = useAutoHeight(draft);
+  if (isDividerOnly(raw)) {
+    return <NodeViewWrapper className="latex-comment-anchor is-divider" contentEditable={false} />;
+  }
+  const save = () => {
+    setEditing(false);
+    if (draft.trim() === text) return;
+    if (!draft.trim()) onDelete();
+    else onChange(replaceCommentText(raw, draft.trim()));
+  };
+  return (
+    <NodeViewWrapper className={`latex-comment-anchor${selected ? " is-selected" : ""}`} contentEditable={false}>
+      <div
+        className={`latex-comment-balloon${editing ? " is-editing" : ""}`}
+        onMouseDown={stop}
+        onKeyDown={stop}
+        onPaste={stop}
+        onCopy={stop}
+        onCut={stop}
+      >
+        <div className="latex-comment-head">
+          <span>{t("Kommentar")}</span>
+          <button type="button" className="latex-comment-delete" title={t("Kommentar löschen")} aria-label={t("Kommentar löschen")} onClick={onDelete}>
+            ✕
+          </button>
+        </div>
+        {editing ? (
+          <textarea
+            ref={textareaRef}
+            className="latex-comment-input"
+            value={draft}
+            autoFocus
+            spellCheck
+            aria-label={t("Kommentar")}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            onBlur={save}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape") {
+                setDraft(text);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="latex-comment-text" title={t("Klicken zum Bearbeiten")} onClick={() => setEditing(true)}>
+            {text}
+          </div>
+        )}
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
+export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode }: ReactNodeViewProps) {
   const t = useT();
   const raw = String(node.attrs.rawLatex ?? "");
   const [draft, setDraft] = useState(raw);
@@ -793,28 +859,13 @@ export function RawLatexBlockView({ node, updateAttributes, selected }: ReactNod
   };
 
   if (comment) {
-    return (
-      <NodeViewWrapper className={`raw-latex-block is-comment${selected ? " is-selected" : ""}`}>
-        <textarea
-          ref={textareaRef}
-          className="code-input raw-latex-input comment-input"
-          value={draft}
-          spellCheck={false}
-          aria-label={t("LaTeX-Kommentar")}
-          onChange={(event) => setDraft(event.currentTarget.value)}
-          onBlur={finish}
-          onKeyDown={stop}
-          onMouseDown={stop}
-          onPaste={stop}
-          onCopy={stop}
-          onCut={stop}
-        />
-      </NodeViewWrapper>
-    );
+    return <LatexCommentBalloon raw={raw} selected={selected} onChange={(rawLatex) => updateAttributes({ rawLatex })} onDelete={deleteNode} />;
   }
 
   return (
-    <NodeViewWrapper className={`raw-latex-block${selected ? " is-selected" : ""}${preview?.image && !showCode ? " has-preview" : ""}`}>
+    <NodeViewWrapper
+      className={`raw-latex-block${selected ? " is-selected" : ""}${preview?.image && !showCode ? " has-preview" : ""}${preview?.fullPage && preview.image && !showCode ? " is-fullpage" : ""}`}
+    >
       <div className="raw-latex-label" contentEditable={false}>
         <span>LaTeX</span>
         <button type="button" className="raw-latex-toggle" onMouseDown={stop} onClick={() => (editing ? finish() : setEditing(true))}>
@@ -833,7 +884,8 @@ export function RawLatexBlockView({ node, updateAttributes, selected }: ReactNod
           className="code-input raw-latex-input"
           value={draft}
           spellCheck={false}
-          autoFocus={editing}
+          autoFocus={editing || !raw.trim()}
+          placeholder={t("LaTeX-Code eingeben …")}
           aria-label={t("LaTeX-Code")}
           onChange={(event) => setDraft(event.currentTarget.value)}
           onBlur={finish}

@@ -44,6 +44,12 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   (PDF/A-2b oder PDF/A-3b). Der LaTeX-Export beginnt dann mit `\DocumentMetadata{pdfstandard=A-2b, …}`; TeX Live,
   MiKTeX und Overleaf (ab 2022) erzeugen daraus ein PDF/A mit eingebetteten Schriften, Metadaten und Farbprofil.
   Die eingebaute Engine kennt diese Angabe nicht, überspringt sie mit Hinweis und erzeugt ein normales PDF.
+- **Zoom:** Strg + Mausrad (oder Zwei-Finger-Geste auf dem Touchpad), *Ansicht → Zoom* bzw. der Regler unten rechts.
+  Strg + Mausrad wirkt auch in der PDF-Vorschau, im Folien-Editor und im Skizzen-Fenster.
+- **Kommentare** (wie in Word): LaTeX-Kommentare (`% …`) erscheinen als Sprechblasen rechts neben der Seite und nehmen im
+  Text keinen Platz ein (im PDF sind sie unsichtbar). Klick auf den Text bearbeitet, ✕ löscht; *Einfügen → Kommentar* legt
+  einen neuen an (nach dem aktuellen Absatz). Reine Trennlinien wie `% =====` werden nicht angezeigt, bleiben aber im Code.
+- **Titelseiten aus LaTeX** (`\begin{titlepage}` in fremden Dokumenten) erscheinen als ganze Seite genau wie im PDF.
 - **Formatierungszeichen** (wie „Alle anzeigen“ in Word): *Start → Absatz →* ¶ bzw. `Strg+Umschalt+*` zeigt Absatzmarken (¶),
   Leerzeichen (·), geschützte Leerzeichen (°) und Zeilenumbrüche (↵). Nur Anzeige – Dokument, Seitenumbrüche und
   LaTeX bleiben unverändert; die Einstellung bleibt gespeichert.

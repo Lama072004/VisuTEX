@@ -54,6 +54,7 @@ import {
 } from "./nodeViews";
 import { Pagination } from "./pagination";
 import { FormattingMarks } from "./formattingMarks";
+import { CommentLayout } from "./commentLayout";
 import { SearchReplace } from "./search";
 import { TableCaptions } from "./tableCaptions";
 
@@ -100,6 +101,7 @@ export function appExtensions(): AnyExtension[] {
     TableCaptions,
     Pagination,
     FormattingMarks,
+    CommentLayout,
     ExtraKeys,
   ];
 }

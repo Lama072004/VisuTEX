@@ -13,6 +13,7 @@ import { Hand, Search, X } from "lucide-react";
 import { api, errorText } from "../api";
 import type { SketchCatalog, SketchSymbol } from "../api";
 import { useLanguage, useT } from "../i18n";
+import { useCtrlWheel } from "../components/useCtrlWheel";
 import { renderMath } from "../latex/miniRender";
 
 export type SketchElement = {
@@ -596,6 +597,8 @@ export function SketchPad({ initial, editing, allowOnline, onInsert, onClose }: 
   const [pathDraft, setPathDraft] = useState<SketchElement | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const canvasAreaRef = useRef<HTMLDivElement>(null);
+  useCtrlWheel(canvasAreaRef, (direction) => setZoom((value) => Math.min(2.5, Math.max(0.5, value + direction * 0.25))));
   const [position, setPosition] = useState(() => ({ left: Math.max(16, window.innerWidth - 1180), top: 90 }));
   const [code, setCode] = useState({ code: "", environment: "tikzpicture" });
   const [preview, setPreview] = useState<{ image: string; error: string; busy: boolean }>({ image: "", error: "", busy: false });
@@ -1463,7 +1466,7 @@ export function SketchPad({ initial, editing, allowOnline, onInsert, onClose }: 
             );
           })}
         </aside>
-        <div className="sketch-canvas">
+        <div className="sketch-canvas" ref={canvasAreaRef}>
           <svg
             ref={svgRef}
             width={COLUMNS * cell}

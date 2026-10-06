@@ -62,6 +62,7 @@ import { useDialogs } from "../components/Dialogs";
 import { InlineMath } from "../editor/schema";
 import { InlineMathView } from "../editor/nodeViews";
 import { useT } from "../i18n";
+import { useCtrlWheel } from "../components/useCtrlWheel";
 import { comboFromEvent, resolveBindings } from "../shortcuts/shortcuts";
 import type { ShortcutOverrides } from "../shortcuts/shortcuts";
 import { renderMath } from "../latex/miniRender";
@@ -817,6 +818,16 @@ export default function SlideEditor({ session, onSessionChange, onClose, onFileM
   const canvasRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState({ w: 900, h: 520 });
   const [zoom, setZoom] = useState<number | null>(null);
+  // Strg + Mausrad auf der Arbeitsfläche (Zoom relativ zu „Anpassen“ = 1)
+  useCtrlWheel(stageRef, (direction) =>
+    setZoom((value) => {
+      const steps = [0.5, 0.75, 1, 1.25, 1.5, 2];
+      const current = value ?? 1;
+      const next = direction > 0 ? steps.find((step) => step > current + 0.01) : [...steps].reverse().find((step) => step < current - 0.01);
+      if (next === undefined) return value;
+      return next === 1 ? null : next;
+    }),
+  );
   useEffect(() => {
     const element = stageRef.current;
     if (!element) return;

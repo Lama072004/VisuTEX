@@ -153,7 +153,8 @@ export type SystemCheckItem = {
 export type SystemCheck = { items: SystemCheckItem[]; packageCacheDir: string; bundlePath: string | null; os: string };
 
 /** Vorschau eines Roh-LaTeX-Blocks (PNG als data:-URL) oder Fehler. */
-export type BlockPreview = { image: string | null; error: string | null };
+/** `fullPage`: ganze Seite samt Rändern (Titelseite), nicht beschnitten. */
+export type BlockPreview = { image: string | null; error: string | null; fullPage?: boolean };
 /** Wie LaTeX aufgelöstes Bild (Unterordner, \graphicspath, ohne Endung, PDF). */
 export type ResolvedImage = {
   file: string | null;

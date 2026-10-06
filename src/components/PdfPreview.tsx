@@ -7,6 +7,7 @@ import { CircleAlert, Download, Maximize2, Play, TriangleAlert, ZoomIn, ZoomOut 
 import { api } from "../api";
 import type { CompileFailure, CompileResult, TexMessage } from "../api";
 import { useT } from "../i18n";
+import { useCtrlWheel } from "./useCtrlWheel";
 
 export type CompileStatus =
   | { state: "idle" }
@@ -86,6 +87,11 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Pro
 
   const pageWidthPt = result?.pages[0]?.width ?? 595;
   const cssScale = fitWidth ? Math.max(0.2, (containerWidth - 32) / pageWidthPt) : zoom * (96 / 72);
+  // Strg + Mausrad zoomt die Vorschau
+  useCtrlWheel(containerRef, (direction) => {
+    setFitWidth(false);
+    setZoom((value) => Math.min(4, Math.max(0.3, (fitWidth ? cssScale / (96 / 72) : value) + direction * 0.1)));
+  });
   const renderScale = Math.min(6, cssScale * (window.devicePixelRatio || 1));
 
   return (

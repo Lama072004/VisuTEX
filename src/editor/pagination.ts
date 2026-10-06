@@ -206,8 +206,11 @@ function computeBreaks(view: EditorView, geometry: PageGeometry): { breaks: Brea
   for (const unit of units) {
     const type = unit.node.type.name;
     const isChapter = type === "heading" && unit.node.attrs.level === 1;
+    // Titelseite aus Roh-LaTeX (`titlepage`, ganzseitige Vorschau) steht wie im PDF auf eigener Seite
+    const fullPage = unit.element.matches(".is-fullpage") || unit.element.querySelector(":scope > .is-fullpage") !== null;
     const startsPage =
       forceBreak ||
+      fullPage ||
       type === "titlePage" ||
       (unit.depth === 0 && type === "directoryBlock") ||
       unit.opens.some(isFrontmatter) ||
@@ -263,6 +266,7 @@ function computeBreaks(view: EditorView, geometry: PageGeometry): { breaks: Brea
 
     if (
       type === "pageBreak" ||
+      fullPage ||
       type === "titlePage" ||
       (unit.depth === 0 && type === "directoryBlock") ||
       unit.closes.some(isFrontmatter)

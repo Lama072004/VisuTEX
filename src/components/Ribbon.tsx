@@ -42,6 +42,7 @@ import {
   List,
   ListOrdered,
   ListTree,
+  MessageSquare,
   MoveVertical,
   Paperclip,
   Ruler,
@@ -102,6 +103,7 @@ export type RibbonActions = {
   insertFootnote: () => void;
   insertAcronym: () => void;
   insertRawLatex: () => void;
+  insertComment: () => void;
   insertQuantity: () => void;
   insertVerticalSpace: () => void;
   insertEnvironment: (kind: "box" | "columns" | "abstract" | "center" | "minipage" | "custom") => void;
@@ -192,6 +194,44 @@ function Group({ label, children }: { label: string; children: ReactNode }) {
       <div className="ribbon-group-content">{children}</div>
       <div className="ribbon-group-label">{label}</div>
     </section>
+  );
+}
+
+/**
+ * Zahlenfeld im Menüband: übernimmt gültige Werte sofort, behält dabei aber den Fokus
+ * (sonst springt nach der ersten Ziffer der Cursor ins Dokument und man kann nicht weitertippen).
+ * Ungültige Zwischenstände werden erst beim Verlassen bzw. mit Eingabe korrigiert.
+ */
+function RibbonNumber({ value, min, max, label, onCommit }: { value: number; min: number; max: number; label: string; onCommit: (value: number) => void }) {
+  const [draft, setDraft] = useState(String(value));
+  useEffect(() => setDraft(String(value)), [value]);
+  const clamp = (text: string) => {
+    const number = Math.round(Number(text.replace(",", ".")));
+    return Number.isFinite(number) && text.trim() ? Math.min(max, Math.max(min, number)) : value;
+  };
+  return (
+    <input
+      type="number"
+      className="ribbon-number"
+      min={min}
+      max={max}
+      value={draft}
+      aria-label={label}
+      onChange={(event) => {
+        const text = event.currentTarget.value;
+        setDraft(text);
+        const number = Number(text);
+        if (text.trim() && number >= min && number <= max) onCommit(Math.round(number));
+      }}
+      onBlur={() => {
+        const next = clamp(draft);
+        setDraft(String(next));
+        if (next !== value) onCommit(next);
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") event.currentTarget.blur();
+      }}
+    />
   );
 }
 
@@ -723,6 +763,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         <Button label={t("Fußnote")} icon={<StickyNote size={18} />} disabled={!visual} onClick={actions.insertFootnote} />
         <Button label={t("Abkürzung")} icon={<BookA size={18} />} disabled={!visual} onClick={actions.insertAcronym} />
         <Button label={t("LaTeX-Code")} icon={<Braces size={18} />} disabled={!visual} onClick={actions.insertRawLatex} />
+        <Button label={t("Kommentar")} icon={<MessageSquare size={18} />} title={t("Kommentar am Rand (wird im LaTeX-Code als % … gespeichert, im PDF unsichtbar)")} disabled={!visual} onClick={actions.insertComment} />
       </Stack>
     ));
     add("elements", t("Elemente"), (
@@ -1021,13 +1062,12 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         <Row>
           <label className="ribbon-label">
             {t("Breite")}
-            <input
-              type="number"
-              className="ribbon-number"
+            <RibbonNumber
+              value={Number(attrs.widthPercent) || 80}
               min={5}
               max={100}
-              value={Number(attrs.widthPercent) || 80}
-              onChange={(event) => chain()?.updateAttributes("image", { widthPercent: Math.min(100, Math.max(5, Number(event.currentTarget.value))) }).run()}
+              label={t("Breite")}
+              onCommit={(widthPercent) => editor?.chain().updateAttributes("image", { widthPercent }).run()}
             />
             %
           </label>

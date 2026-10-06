@@ -29,6 +29,17 @@ pub struct BlockPreview {
     /// PNG als data:-URL
     pub image: Option<String>,
     pub error: Option<String>,
+    /// Ganzseitiger Block (`titlepage`): Bild ist die ganze Seite samt Rändern, nicht beschnitten.
+    pub full_page: bool,
+}
+
+/// Füllt der Block eine eigene Seite (Titelseite)? Kommentarzeilen davor zählen nicht.
+pub fn is_full_page_block(latex: &str) -> bool {
+    latex
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with('%'))
+        .is_some_and(|line| line.starts_with("\\begin{titlepage}"))
 }
 
 /// Präambel bis vor `\begin{document}`.
@@ -155,6 +166,7 @@ fn compile_blocks(
             previews.push(BlockPreview {
                 image: None,
                 error: Some("Keine Ausgabe für diesen Block.".into()),
+                full_page: false,
             });
             continue;
         };
@@ -163,6 +175,16 @@ fn compile_blocks(
             .find_map(|other| starts.get(&other).copied())
             .unwrap_or(total + 1);
         let end = next.saturating_sub(1).max(start).min(total);
+        if is_full_page_block(blocks[index]) {
+            // Titelseite: ganze Seite unbeschnitten, damit sie im Editor genau auf dem Blatt liegt
+            let png = crate::pdf::render_page_png(&stored, start - 1, SCALE)?;
+            previews.push(BlockPreview {
+                image: Some(data_url(&png)),
+                error: None,
+                full_page: true,
+            });
+            continue;
+        }
         let mut pages = Vec::new();
         for page in start..=end.min(start + MAX_PAGES - 1) {
             pages.push(crate::pdf::render_page_png(&stored, page - 1, SCALE)?);
@@ -171,10 +193,12 @@ fn compile_blocks(
             Ok(png) => BlockPreview {
                 image: Some(data_url(&png)),
                 error: None,
+                full_page: false,
             },
             Err(error) => BlockPreview {
                 image: None,
                 error: Some(error),
+                full_page: false,
             },
         });
     }
@@ -204,6 +228,7 @@ pub fn render_blocks(
                     Err(error) => BlockPreview {
                         image: None,
                         error: Some(error),
+                        full_page: false,
                     },
                 },
             )
@@ -211,6 +236,7 @@ pub fn render_blocks(
         Err(error) => vec![BlockPreview {
             image: None,
             error: Some(error),
+            full_page: false,
         }],
     }
 }
@@ -339,6 +365,14 @@ pub fn resolve_image(root: &Path, path: &str, preamble: &str) -> ResolvedImage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detects_full_page_blocks() {
+        assert!(is_full_page_block(
+            "% Titelseite\n\\begin{titlepage}\nx\n\\end{titlepage}"
+        ));
+        assert!(!is_full_page_block("\\begin{tabular}{l}x\\end{tabular}"));
+    }
 
     #[test]
     fn reads_block_pages_from_aux() {

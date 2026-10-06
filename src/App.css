@@ -1882,6 +1882,37 @@ kbd {
   max-width: 150%;
   display: inline-block;
 }
+/* Ganzseitige Blöcke (Titelseite): Vorschau genau auf dem Blatt, Block füllt eine Seite */
+.raw-latex-block.is-fullpage {
+  position: relative;
+  height: calc(var(--page-height) - var(--margin-top) - var(--margin-bottom));
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  overflow: visible;
+}
+.raw-latex-block.is-fullpage .raw-latex-preview {
+  position: absolute;
+  top: calc(-1 * var(--margin-top));
+  left: calc(-1 * var(--margin-left));
+  width: var(--page-width);
+  height: var(--page-height);
+  padding: 0;
+  text-align: left;
+}
+.raw-latex-block.is-fullpage .raw-latex-preview img {
+  zoom: 1;
+  width: var(--page-width);
+  height: var(--page-height);
+  max-width: none;
+  display: block;
+}
+.raw-latex-block.is-fullpage .raw-latex-label {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 1;
+}
 .raw-latex-loading {
   font-family: var(--ui-font);
   font-size: 12px;
@@ -1889,16 +1920,96 @@ kbd {
   padding: 12px;
   text-align: center;
 }
-.raw-latex-block.is-comment {
-  border: none;
-  border-left: 2px solid #c9c9d1;
-  background: transparent;
-  margin-bottom: 0.4em;
+/* LaTeX-Kommentare als Randkommentare (wie in Word): ohne Höhe im Text, Sprechblase
+   rechts neben der Seite; die Seite rückt dafür nach links (siehe .paper-outer). */
+.document-body > .latex-comment-anchor,
+.latex-comment-anchor {
+  position: relative;
+  height: 0;
+  margin: 0 !important;
+  padding: 0;
+  border: 0;
 }
-.raw-latex-block.is-comment .comment-input {
-  color: #8b8f98;
-  font-size: 0.78em;
-  padding: 2px 8px;
+.latex-comment-balloon {
+  position: absolute;
+  top: -0.2em;
+  left: calc(100% + var(--margin-right, 25mm) + 22px);
+  width: 230px;
+  box-sizing: border-box;
+  padding: 5px 8px 7px;
+  background: #fff7d6;
+  border: 1px solid #e6cf7a;
+  border-left: 3px solid #d9a400;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  color: #3a3a3a;
+  font: 12px/1.4 system-ui, "Segoe UI", sans-serif;
+  text-align: left;
+  text-indent: 0;
+  white-space: normal;
+  cursor: default;
+  z-index: 3;
+}
+/* gestrichelte Linie von der Textstelle zur Sprechblase */
+.latex-comment-balloon::before {
+  content: "";
+  position: absolute;
+  top: 0.75em;
+  right: 100%;
+  width: calc(var(--margin-right, 25mm) + 22px);
+  border-top: 1px dashed #d9a400;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.latex-comment-anchor.is-selected .latex-comment-balloon,
+.latex-comment-balloon.is-editing {
+  border-color: #d9a400;
+  box-shadow: 0 0 0 2px rgba(217, 164, 0, 0.35);
+}
+.latex-comment-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 11px;
+  color: #8a6a00;
+  margin-bottom: 2px;
+}
+.latex-comment-head span {
+  flex: 1;
+}
+.latex-comment-delete {
+  border: 0;
+  background: transparent;
+  color: #8a6a00;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1;
+}
+.latex-comment-delete:hover {
+  color: #b42318;
+}
+.latex-comment-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+  min-height: 1.4em;
+}
+.latex-comment-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  border: 1px solid #e6cf7a;
+  border-radius: 4px;
+  background: #fffdf3;
+  font: inherit;
+  color: inherit;
+  padding: 3px 5px;
+}
+/* Platz für die Randkommentare rechts neben der Seite */
+.paper-outer:has(.latex-comment-balloon) {
+  padding-right: calc(275px * var(--zoom, 1));
 }
 .raw-latex-inline.is-rendered {
   font-family: inherit;
