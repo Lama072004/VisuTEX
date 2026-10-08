@@ -28,3 +28,4 @@ pub mod settings;
 pub mod sketch;
 pub mod sketch_catalog;
 pub mod slides;
+pub mod support;

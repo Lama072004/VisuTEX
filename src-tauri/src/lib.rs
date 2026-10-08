@@ -8,15 +8,18 @@
 pub mod addons;
 pub mod compile;
 pub mod core;
+pub mod embedded;
 pub mod files;
 pub mod fonts;
 pub mod images;
 pub mod pdf;
 pub mod prepare;
 pub mod preview;
+pub mod setup;
 pub mod system;
 pub mod templates;
 pub mod texbundle;
+pub mod updates;
 pub mod zotero;
 
 use crate::core::analysis::{self, Analysis};
@@ -74,6 +77,13 @@ fn resource_path(app: &AppHandle, relative: &str) -> Option<PathBuf> {
         .filter(|path| path.exists())
 }
 
+/// Cache-Ordner der App (hier werden eingebettete Dateien beim ersten Bedarf entpackt).
+fn cache_dir_root(app: &AppHandle) -> PathBuf {
+    app.path()
+        .app_cache_dir()
+        .unwrap_or_else(|_| std::env::temp_dir().join("visutex"))
+}
+
 fn tex_options(app: &AppHandle) -> TexOptions {
     app.state::<AppState>()
         .tex
@@ -110,7 +120,9 @@ fn bundle_config(app: &AppHandle, allow_online: bool) -> Result<BundleConfig, St
             .map(|dir| dir.join("tex-pakete")),
     };
     Ok(BundleConfig {
+        // eigenes Bundle → in die EXE eingebettetes → Ordner `resources` (Entwicklung)
         embedded_zip: custom_bundle
+            .or_else(|| embedded::tex_bundle(&cache_dir_root(app)))
             .or_else(|| resource_path(app, &format!("resources/{}", texbundle::BUNDLE_FILE_NAME))),
         allow_online: allow_online || options.allow_online,
         cache_dir,
@@ -128,7 +140,8 @@ fn addon_dirs(app: &AppHandle) -> Result<AddonDirs, String> {
         .map_err(|error| format!("Add-on-Ordner konnte nicht angelegt werden: {error}"))?;
     Ok(AddonDirs {
         user,
-        builtin: resource_path(app, "resources/addons"),
+        builtin: embedded::addons(&cache_dir_root(app))
+            .or_else(|| resource_path(app, "resources/addons")),
     })
 }
 
@@ -223,7 +236,7 @@ struct AppInfo {
 #[tauri::command]
 async fn app_info(app: AppHandle, allow_online: bool) -> Result<AppInfo, String> {
     let config = bundle_config(&app, allow_online)?;
-    let version = app.package_info().version.to_string();
+    let version = updates::current_version().to_string();
     blocking(move || {
         let available_fonts = core::settings::AVAILABLE_FONTS
             .iter()
@@ -380,6 +393,113 @@ fn sketch_from_code(code: String) -> Option<core::sketch::Sketch> {
     core::sketch::from_code(&code)
 }
 
+// ------------------------------------------------------------------ Einrichtung und Updates
+
+fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(root) = setup::sandbox() {
+        return Ok(root.join("daten"));
+    }
+    app.path()
+        .app_data_dir()
+        .map_err(|error| format!("Datenordner nicht verfügbar: {error}"))
+}
+
+/// Startet `exe` neu und beendet diese Instanz (nach kurzer Pause, damit die Antwort ankommt).
+fn restart_into(app: &AppHandle, exe: PathBuf) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        if std::process::Command::new(&exe).spawn().is_ok() {
+            app.exit(0);
+        }
+    });
+}
+
+#[tauri::command]
+async fn setup_status(app: AppHandle) -> Result<setup::SetupStatus, String> {
+    let dir = data_dir(&app)?;
+    blocking(move || Ok(setup::status(&dir))).await
+}
+
+/// Installieren und die installierte Kopie starten.
+#[tauri::command]
+async fn setup_install(app: AppHandle, options: setup::InstallOptions) -> Result<String, String> {
+    let dir = data_dir(&app)?;
+    let exe = blocking(move || setup::install(&options, &dir)).await?;
+    let text = exe.display().to_string();
+    restart_into(&app, exe);
+    Ok(text)
+}
+
+#[tauri::command]
+async fn setup_use_portable(app: AppHandle) -> Result<(), String> {
+    let dir = data_dir(&app)?;
+    blocking(move || setup::use_portable(&dir)).await
+}
+
+#[tauri::command]
+async fn setup_set_autostart(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let dir = data_dir(&app)?;
+    blocking(move || setup::set_autostart(&dir, enabled)).await
+}
+
+/// Deinstallieren und beenden.
+#[tauri::command]
+async fn setup_uninstall(app: AppHandle) -> Result<(), String> {
+    let dir = data_dir(&app)?;
+    let cache = cache_dir_root(&app);
+    blocking(move || setup::uninstall(&dir, &cache)).await?;
+    let handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        handle.exit(0);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_check() -> Result<updates::UpdateInfo, String> {
+    blocking(updates::check).await
+}
+
+/// Neue Version laden, Programmdatei ersetzen und neu starten. Fortschritt als Ereignis
+/// `update-progress` ({ loaded, total }).
+#[tauri::command]
+async fn update_install(app: AppHandle, asset: updates::UpdateAsset) -> Result<(), String> {
+    let work = cache_dir_root(&app).join("update");
+    let emitter = app.clone();
+    let restart = blocking(move || {
+        let mut last = 0u64;
+        updates::install(&asset, &work, &mut |loaded, total| {
+            // höchstens etwa alle 1 MB melden
+            if loaded - last >= 1 << 20 || loaded == total {
+                last = loaded;
+                let _ = emitter.emit(
+                    "update-progress",
+                    serde_json::json!({ "loaded": loaded, "total": total }),
+                );
+            }
+        })
+    })
+    .await?;
+    match restart {
+        Some(exe) => restart_into(&app, exe),
+        // Setup.exe übernimmt (still) und startet VisuTeX danach selbst neu
+        None => {
+            let handle = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(400));
+                handle.exit(0);
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Symbole des Skizzier-Werkzeugs, beim Bauen eingebettet (≈ 0,9 MB) – Rückfall, falls der
+/// Ordner `resources` neben dem Programm fehlt.
+const EMBEDDED_SKETCH_SYMBOLS: &str = include_str!("../resources/sketch-symbols.json");
+
 /// Alle Symbole des Skizzier-Werkzeugs (CircuiTikZ-Bauteile, TikZ-Formen) mit
 /// Vorschaubild und Anschlüssen (aus `resources/sketch-symbols.json`).
 #[tauri::command]
@@ -388,12 +508,15 @@ async fn sketch_catalog(app: AppHandle) -> Result<core::sketch_catalog::Catalog,
     if let Some(catalog) = CATALOG.get() {
         return Ok(catalog.clone());
     }
-    let path = resource_path(&app, "resources/sketch-symbols.json")
-        .filter(|path| path.is_file())
-        .ok_or("Die Symbole des Skizzier-Werkzeugs fehlen (resources/sketch-symbols.json).")?;
+    // Datei im Ordner `resources` (nach `build-sketch-symbols` aktuell); fehlt sie – etwa wenn nur
+    // die EXE kopiert wurde –, die beim Bauen eingebettete Fassung verwenden.
+    let path = resource_path(&app, "resources/sketch-symbols.json").filter(|path| path.is_file());
     let catalog = blocking(move || {
-        let text = std::fs::read_to_string(&path)
-            .map_err(|error| format!("Symboldatei nicht lesbar: {error}"))?;
+        let text = match path {
+            Some(path) => std::fs::read_to_string(&path)
+                .map_err(|error| format!("Symboldatei nicht lesbar: {error}"))?,
+            None => EMBEDDED_SKETCH_SYMBOLS.to_string(),
+        };
         core::sketch_catalog::build_catalog(&text)
     })
     .await?;
@@ -859,6 +982,8 @@ async fn export_tex(
             let resources = files::local_resource_files(&latex, &source);
             missing_files = files::copy_project_files(&source, &root, &resources)?;
         }
+        // Eigene Dateien von VisuTeX (z. B. deutscher IEEE-Stil) mitliefern
+        core::support::write_files(&latex, &root, false)?;
         for file in dirs.tex_files() {
             if let Some(name) = file.file_name() {
                 let target = root.join(name);
@@ -1197,7 +1322,16 @@ async fn templates_list(app: AppHandle) -> Result<Vec<templates::TemplateInfo>, 
 // ---------------------------------------------------------------- Start
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+/// Start ohne eingebettete Dateien (Entwicklung): Bundle und Add-ons aus `resources/`.
 pub fn run() {
+    run_with(embedded::EmbeddedAssets::default())
+}
+
+/// Start mit den in die EXE eingebetteten Dateien (siehe `main.rs`).
+pub fn run_with(assets: embedded::EmbeddedAssets) {
+    embedded::install(assets);
+    // Reste eines Updates bzw. einer Installation (`*.old`) aufräumen
+    setup::cleanup_leftovers();
     // Fontconfig für die eingebaute TeX-Engine einrichten (vor allen weiteren Threads).
     fonts::configure_fontconfig();
     // Schriftliste im Hintergrund aufbauen (erste Kompilierung wird dadurch schneller).
@@ -1208,6 +1342,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(|app| {
+            // nach einem Update: Versionsnummer unter „Apps“ nachziehen (im Hintergrund)
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                if let Ok(dir) = data_dir(&handle) {
+                    setup::refresh_after_update(&dir);
+                }
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             app_info,
             export_document,
@@ -1222,6 +1366,13 @@ pub fn run() {
             slides_compile,
             sketch_from_code,
             sketch_catalog,
+            setup_status,
+            setup_install,
+            setup_use_portable,
+            setup_set_autostart,
+            setup_uninstall,
+            update_check,
+            update_install,
             analyze_document,
             check_resources,
             compile_document,

@@ -213,6 +213,14 @@ pub fn compile(
         messages: Vec::new(),
         progress,
     };
+    // Eigene Dateien von VisuTeX (z. B. deutscher IEEE-Stil) über einen Suchpfad bereitstellen
+    let mut search_paths = request.extra_search_paths.clone();
+    if !crate::core::support::files_for(&prepared.latex).is_empty() {
+        let dir = std::env::temp_dir().join("visutex-tex");
+        crate::core::support::write_files(&prepared.latex, &dir, true)
+            .map_err(CompileFailure::simple)?;
+        search_paths.push(dir);
+    }
 
     // Zusätzliche Suchpfade sind ein „unsicheres“ Tectonic-Feature – Add-ons sind
     // deklarativ und Shell-Escape bleibt deaktiviert.
@@ -237,7 +245,7 @@ pub fn compile(
     // entsteht trotzdem und die Fehler werden mit Zeilennummer gemeldet. Fehlende
     // Dateien bleiben fatal (→ Dialog zum Nachladen).
     builder.unstables(tectonic::unstable_opts::UnstableOptions {
-        extra_search_paths: request.extra_search_paths.clone(),
+        extra_search_paths: search_paths,
         continue_on_errors: true,
         ..Default::default()
     });

@@ -20,8 +20,8 @@ import {
   Settings,
   SlidersHorizontal,
 } from "lucide-react";
-import { api } from "../api";
-import type { AppInfo, TemplateInfo } from "../api";
+import { api, errorText } from "../api";
+import type { AppInfo, SetupStatus, TemplateInfo } from "../api";
 import { useT } from "../i18n";
 import type { UiLanguage } from "../i18n";
 import { UI_LANGUAGES } from "../i18n";
@@ -44,6 +44,10 @@ export type AppPrefs = {
   bundlePath: string;
   /** Abweichungen von der Standardbelegung der Tastenkürzel. */
   shortcuts: ShortcutOverrides;
+  /** Beim Start bei GitHub nach einer neueren Version suchen. */
+  checkUpdates: boolean;
+  /** Übersprungene Version (kein Hinweis mehr beim Start). */
+  skipUpdate: string;
 };
 
 export type RecentFile = { path: string; name: string; openedAt: number };
@@ -70,6 +74,12 @@ type Props = {
   /** Zurück möglich (Dokument offen bzw. Folien-Editor aktiv) */
   canClose: boolean;
   appInfo: AppInfo | null;
+  /** Installationsstand (null: Browser bzw. noch unbekannt) */
+  setup: SetupStatus | null;
+  /** Manuelle Update-Suche; liefert eine Meldung, falls kein Update-Dialog erscheint. */
+  onCheckUpdates: () => Promise<string>;
+  onSetupChanged: () => void;
+  onShowSetup: (kind: "setup" | "uninstall") => void;
   prefs: AppPrefs;
   recent: RecentFile[];
   recovery: { name: string; savedAt: number } | null;
@@ -107,6 +117,24 @@ function NavButton({ active, onClick, icon, label }: { active?: boolean; onClick
 export function Backstage(props: Props) {
   const t = useT();
   const [view, setView] = useState<BackstageView>(props.initialView);
+  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState("");
+  const installed = props.setup?.state?.mode === "installed" ? props.setup.state : null;
+  const checkUpdates = async () => {
+    setUpdateBusy(true);
+    setUpdateMessage("");
+    setUpdateMessage(await props.onCheckUpdates());
+    setUpdateBusy(false);
+  };
+  const setAutostart = async (enabled: boolean) => {
+    try {
+      await api.setupSetAutostart(enabled);
+      setUpdateMessage("");
+    } catch (error) {
+      setUpdateMessage(errorText(error));
+    }
+    props.onSetupChanged();
+  };
   const [templates, setTemplates] = useState<TemplateInfo[]>([]);
   useEffect(() => {
     void api.templatesList().then(setTemplates).catch(() => setTemplates([]));
@@ -355,6 +383,16 @@ export function Backstage(props: Props) {
                 {t("PDF-Vorschau automatisch aktualisieren (bei geöffneter Vorschau)")}
               </label>
               <label className="checkbox form-checkbox span-2">
+                <input type="checkbox" checked={prefs.checkUpdates} onChange={(event) => setPref({ checkUpdates: event.currentTarget.checked })} />
+                {t("Beim Start nach Updates suchen (GitHub)")}
+              </label>
+              {installed && (
+                <label className="checkbox form-checkbox span-2">
+                  <input type="checkbox" checked={installed.autostart} onChange={(event) => void setAutostart(event.currentTarget.checked)} />
+                  {props.setup?.platform === "windows" ? t("Mit Windows starten") : t("Beim Anmelden starten")}
+                </label>
+              )}
+              <label className="checkbox form-checkbox span-2">
                 <input type="checkbox" checked={prefs.allowOnline} onChange={(event) => setPref({ allowOnline: event.currentTarget.checked })} />
                 {t("Fehlende TeX-Pakete online nachladen (sonst nur mitgeliefertes Bundle, vollständig offline)")}
               </label>
@@ -388,6 +426,18 @@ export function Backstage(props: Props) {
             <dl className="info-list">
               <dt>{t("Version")}</dt>
               <dd>{props.appInfo?.version ?? "–"}</dd>
+              {props.setup && (
+                <>
+                  <dt>{t("Installation")}</dt>
+                  <dd>
+                    {installed?.installDir
+                      ? `${t("Installiert in")} ${installed.installDir}`
+                      : props.setup.packaged
+                        ? t("Über das Installationsprogramm installiert")
+                        : t("Ohne Installation (portabel)")}
+                  </dd>
+                </>
+              )}
               <dt>{t("TeX-Bundle")}</dt>
               <dd>
                 {props.appInfo?.bundle.kind === "online"
@@ -399,7 +449,19 @@ export function Backstage(props: Props) {
             </dl>
             <div className="button-row left">
               <button type="button" className="primary" onClick={props.onSystemCheck}>{t("Systemprüfung …")}</button>
+              {props.setup && (
+                <button type="button" onClick={() => void checkUpdates()} disabled={updateBusy}>
+                  {updateBusy ? t("Suche läuft …") : t("Nach Updates suchen")}
+                </button>
+              )}
+              {props.setup && !installed && !props.setup.packaged && (
+                <button type="button" onClick={() => props.onShowSetup("setup")}>{t("Installieren …")}</button>
+              )}
+              {installed && props.setup?.runningInstalled && (
+                <button type="button" onClick={() => props.onShowSetup("uninstall")}>{t("Deinstallieren …")}</button>
+              )}
             </div>
+            {updateMessage && <p className="muted">{updateMessage}</p>}
           </>
         )}
       </main>

@@ -14,6 +14,7 @@ import { formatQuantity } from "../latex/siunitx";
 import { getRuntime, renderContext, useRuntime } from "../state/runtime";
 import { cachedPreview, isCommentOnly, requestPreview } from "./latexPreview";
 import { commentText, isDividerOnly, replaceCommentText } from "./comments";
+import { isLayoutOnly, layoutSummary } from "./layoutCommands";
 import { frontmatterTitles, subfigureDefaultPercent, titlePageFields } from "./schema";
 import type { FrontmatterKind, SubfigureItem, TitlePageField } from "./schema";
 import { documentLanguage } from "../latex/languages";
@@ -819,6 +820,70 @@ function LatexCommentBalloon({ raw, selected, onChange, onDelete }: { raw: strin
   );
 }
 
+/**
+ * Unsichtbare Layout-Befehle (`\setcounter`, `\begingroup`, `\setlength` …) als kleine Markierung am
+ * linken Seitenrand: ohne Höhe im Text (wie im PDF), Klick bearbeitet den Code, ✕ löscht.
+ */
+function LatexLayoutMarker({ raw, selected, onChange, onDelete }: { raw: string; selected: boolean; onChange: (raw: string) => void; onDelete: () => void }) {
+  const t = useT();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(raw);
+  useEffect(() => setDraft(raw), [raw]);
+  const textareaRef = useAutoHeight(draft);
+  const save = () => {
+    setEditing(false);
+    if (draft === raw) return;
+    if (!draft.trim()) onDelete();
+    else onChange(draft);
+  };
+  return (
+    <NodeViewWrapper className={`latex-layout-anchor${selected ? " is-selected" : ""}`} contentEditable={false}>
+      <div
+        className={`latex-layout-marker${editing ? " is-editing" : ""}`}
+        onMouseDown={stop}
+        onKeyDown={stop}
+        onPaste={stop}
+        onCopy={stop}
+        onCut={stop}
+      >
+        {editing ? (
+          <textarea
+            ref={textareaRef}
+            className="latex-layout-input"
+            value={draft}
+            autoFocus
+            spellCheck={false}
+            aria-label={t("Layout-Befehl")}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+            onBlur={save}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+              if (event.key === "Escape") {
+                setDraft(raw);
+                setEditing(false);
+              }
+            }}
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              className="latex-layout-code"
+              title={`${t("Layout-Befehl (im PDF unsichtbar) – klicken zum Bearbeiten")}\n\n${raw}`}
+              onClick={() => setEditing(true)}
+            >
+              {layoutSummary(raw)}
+            </button>
+            <button type="button" className="latex-layout-delete" title={t("Befehl löschen")} aria-label={t("Befehl löschen")} onClick={onDelete}>
+              ✕
+            </button>
+          </>
+        )}
+      </div>
+    </NodeViewWrapper>
+  );
+}
+
 export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode }: ReactNodeViewProps) {
   const t = useT();
   const raw = String(node.attrs.rawLatex ?? "");
@@ -828,13 +893,15 @@ export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode
   useEffect(() => setDraft(raw), [raw]);
   const missing = Array.isArray(node.attrs.missingResources) ? (node.attrs.missingResources as string[]) : [];
   const comment = isCommentOnly(raw);
-  const [preview, setPreview] = useState<BlockPreview | null>(() => (comment ? null : cachedPreview(raw)));
+  // Nur unsichtbare Layout-Befehle → Randmarkierung statt Vorschau (nicht während der Bearbeitung als Block)
+  const layout = !comment && !editing && isLayoutOnly(raw);
+  const [preview, setPreview] = useState<BlockPreview | null>(() => (comment || layout ? null : cachedPreview(raw)));
   const [loading, setLoading] = useState(false);
   const root = useRuntime((runtime) => runtime.projectRoot);
   const preamble = useRuntime((runtime) => runtime.customPreamble);
 
   useEffect(() => {
-    if (comment || !raw.trim()) return;
+    if (comment || layout || !raw.trim()) return;
     const cached = cachedPreview(raw);
     if (cached) {
       setPreview(cached);
@@ -850,7 +917,7 @@ export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode
     return () => {
       cancelled = true;
     };
-  }, [raw, comment, root, preamble]);
+  }, [raw, comment, layout, root, preamble]);
 
   const showCode = editing || comment || (!preview?.image && !loading);
   const finish = () => {
@@ -860,6 +927,9 @@ export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode
 
   if (comment) {
     return <LatexCommentBalloon raw={raw} selected={selected} onChange={(rawLatex) => updateAttributes({ rawLatex })} onDelete={deleteNode} />;
+  }
+  if (layout) {
+    return <LatexLayoutMarker raw={raw} selected={selected} onChange={(rawLatex) => updateAttributes({ rawLatex })} onDelete={deleteNode} />;
   }
 
   return (
@@ -994,8 +1064,25 @@ const QUIET_INLINE = /^\\(quad|qquad|,|;|:|!| |enspace|hfill|hfil|noindent|inden
  * Makros wie `\teil{a}`, Abstände). Doppelklick bearbeitet den Code.
  */
 export function RawLatexInlineView({ node, selected, getPos }: ReactNodeViewProps) {
+  const t = useT();
   const edit = useEditOnClick("rawLatexInline", getPos);
   const latex = String(node.attrs.latex ?? "");
+  if (isLayoutOnly(latex)) {
+    // unsichtbarer Layout-Befehl: ohne Breite im Text, Markierung am linken Rand (commentLayout.ts)
+    return (
+      <NodeViewWrapper as="span" className={`latex-layout-inline${selected ? " is-selected" : ""}`} contentEditable={false}>
+        <span className="latex-layout-marker is-inline" onMouseDown={stop}>
+          <button type="button" className="latex-layout-code" title={`${t("Layout-Befehl (im PDF unsichtbar) – klicken zum Bearbeiten")}\n\n${latex}`} onClick={edit}>
+            {layoutSummary(latex)}
+          </button>
+        </span>
+      </NodeViewWrapper>
+    );
+  }
+  return <RawLatexInlineChip latex={latex} selected={selected} edit={edit} />;
+}
+
+function RawLatexInlineChip({ latex, selected, edit }: { latex: string; selected: boolean; edit: () => void }) {
   const macros = useRuntime((runtime) => runtime.macros);
   const html = useMemo(() => latexToHtml(latex, renderContext()), [latex, macros]);
   const visible = html.replace(/<[^>]*>/g, "").trim();

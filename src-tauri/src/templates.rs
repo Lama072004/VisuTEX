@@ -78,7 +78,6 @@ pub fn build(id: &str) -> Result<Project, String> {
             settings.binding_offset = 8.0;
             settings.margins.left = 25.0;
             settings.margins.right = 25.0;
-            settings.bibliography.style = "ieee".into();
             settings.bibliography.file = "literatur.bib".into();
             settings.header_footer.enabled = false;
             vec![
@@ -173,6 +172,11 @@ pub fn build(id: &str) -> Result<Project, String> {
         }
         other => return Err(format!("Unbekannte Vorlage „{other}“.")),
     };
+    // IEEE in der Sprache des Dokuments (deutsche Vorlagen: „IEEE (deutsch)“)
+    if settings.bibliography.style == "ieee" {
+        settings.bibliography.style =
+            crate::core::preamble::ieee_style_for_language(&settings.language).into();
+    }
     Ok(Project::new(
         settings,
         json!({ "type": "doc", "content": content }),

@@ -934,6 +934,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
             }
           >
             <option value="ieee">IEEE</option>
+            <option value="ieee-de">{t("IEEE (deutsch)")}</option>
             <option value="plainnat">{t("Numerisch")}</option>
             <option value="abbrvnat">{t("Numerisch, abgekürzt")}</option>
             <option value="plainnat-authoryear">{t("Autor-Jahr")}</option>

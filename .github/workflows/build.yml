@@ -8,8 +8,9 @@
 # und auf fehlende Bibliotheken geprüft.
 #
 # Release: Tag `v…` hochladen (z. B. `v0.2.0-alpha.1`) → nach erfolgreichen Tests entsteht ein
-# Release-Entwurf mit allen Paketen (Windows: Setup, MSI, portable ZIP · Linux: deb, rpm,
-# AppImage). Tags mit alpha/beta/rc werden als Vorabversion markiert.
+# Release-Entwurf mit allen Paketen (Windows: Setup, MSI, portable ZIP, einzelne EXE · Linux: deb, rpm,
+# AppImage). Tags mit alpha/beta/rc werden als Vorabversion markiert. Die Version kommt aus dem
+# Tag (VISUTEX_VERSION); die Update-Suche der App vergleicht damit die veröffentlichten Releases.
 name: build
 
 on:
@@ -78,6 +79,11 @@ jobs:
         if: runner.os == 'Linux'
         run: ls -la src-tauri/target/vcpkg/installed/x64-linux/lib || true
 
+      # Release-Tags (v0.2.0-alpha.2 …): Version für die Update-Suche der App
+      - name: Version aus dem Tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: echo "VISUTEX_VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
+
       - name: Frontend – Abhängigkeiten, Tests, Build
         run: |
           npm ci
@@ -106,7 +112,7 @@ jobs:
 
       - name: Portable Windows-Version (ZIP)
         if: runner.os == 'Windows'
-        run: node scripts/portable.mjs --target ${{ matrix.target }} --zip
+        run: node scripts/portable.mjs --target ${{ matrix.target }} --zip --exe
 
       - uses: actions/upload-artifact@v6
         with:
@@ -118,6 +124,7 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.rpm
             src-tauri/target/${{ matrix.target }}/release/bundle/**/*.AppImage
             src-tauri/target/${{ matrix.target }}/release/*-portable.zip
+            src-tauri/target/${{ matrix.target }}/release/*_windows_x64.exe
           if-no-files-found: error
 
   # Portabilität: das exportierte Dokument muss mit TeX Live auf allen drei Engines
@@ -134,7 +141,10 @@ jobs:
           path: roundtrip
       - name: pdfLaTeX, XeLaTeX und LuaLaTeX
         shell: bash
-        run: bash scripts/check-latex-engines.sh roundtrip doc
+        run: |
+          bash scripts/check-latex-engines.sh roundtrip doc
+          # deutscher IEEE-Stil (visutex-ieee-de.bst liegt daneben)
+          bash scripts/check-latex-engines.sh roundtrip doc-de
 
   # Frische Installation auf verschiedenen Distributionen: Paket installieren und
   # prüfen, dass alle Bibliotheken gefunden werden (ohne weitere Schritte).
@@ -214,11 +224,10 @@ jobs:
           if LD_LIBRARY_PATH="$libpath" ldd "$binary" | grep "not found"; then
             echo "Fehlende Bibliotheken auf ${{ matrix.image }}"; exit 1
           fi
-          # Mitgeliefertes TeX-Bundle vorhanden? (nur Installationsordner durchsuchen – `find /`
-          # stolpert über verschwindende /proc-Einträge und bricht mit pipefail ab)
-          bundle=$(find /usr /opt /tmp/squashfs-root -name tex-bundle.zip -path '*resources*' -print -quit 2>/dev/null || true)
-          test -n "$bundle"
-          echo "TeX-Bundle: $bundle"
+          # TeX-Bundle ist in das Programm eingebettet (≈ 66 MB) → Programm muss entsprechend groß sein
+          size=$(stat -c %s "$binary")
+          echo "Programmgröße: $size Bytes"
+          test "$size" -gt 100000000
           echo "OK: ${{ matrix.image }}"
 
   # Release-Entwurf mit allen Paketen – nur für Tags `v…` und nur, wenn alles grün ist.
@@ -236,7 +245,7 @@ jobs:
       - name: Dateien sammeln
         run: |
           mkdir -p upload
-          find pakete -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*-portable.zip' \) -exec cp {} upload/ \;
+          find pakete -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*-portable.zip' -o -name '*_windows_x64.exe' \) -exec cp {} upload/ \;
           ls -la upload
       - uses: softprops/action-gh-release@v3
         with:

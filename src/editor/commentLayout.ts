@@ -9,8 +9,8 @@ import type { EditorView } from "@tiptap/pm/view";
 
 const GAP = 6;
 
-function layoutBalloons(view: EditorView) {
-  const balloons = [...view.dom.querySelectorAll<HTMLElement>(".latex-comment-balloon")];
+function layoutBalloons(view: EditorView, selector: string) {
+  const balloons = [...view.dom.querySelectorAll<HTMLElement>(selector)];
   if (balloons.length === 0) return;
   const root = view.dom as HTMLElement;
   // Zoom der Seite (transform: scale) herausrechnen
@@ -27,6 +27,22 @@ function layoutBalloons(view: EditorView) {
   }
 }
 
+/** Inline-Layout-Befehle: Markierung vom Textanker an den linken Rand des Textbereichs schieben. */
+function placeInlineMarkers(view: EditorView) {
+  const markers = [...view.dom.querySelectorAll<HTMLElement>(".latex-layout-marker.is-inline")];
+  if (markers.length === 0) return;
+  const root = view.dom as HTMLElement;
+  const scale = root.offsetHeight > 0 ? root.getBoundingClientRect().height / root.offsetHeight : 1;
+  // linke Kante des Textbereichs (der Editor enthält den Seitenrand als Innenabstand)
+  const left = root.getBoundingClientRect().left + (parseFloat(getComputedStyle(root).paddingLeft) || 0) * (scale || 1);
+  for (const marker of markers) {
+    const anchor = marker.parentElement;
+    if (!anchor) continue;
+    const offset = (anchor.getBoundingClientRect().left - left) / (scale || 1);
+    marker.style.left = `${-offset - marker.offsetWidth - 6}px`;
+  }
+}
+
 export const CommentLayout = Extension.create({
   name: "commentLayout",
 
@@ -40,7 +56,10 @@ export const CommentLayout = Extension.create({
             if (frame) return;
             frame = window.requestAnimationFrame(() => {
               frame = 0;
-              layoutBalloons(view);
+              layoutBalloons(view, ".latex-comment-balloon");
+              placeInlineMarkers(view);
+              // Layout-Befehle am linken Rand ebenso
+              layoutBalloons(view, ".latex-layout-marker");
             });
           };
           // React-NodeViews rendern teils nach dem ProseMirror-Update → auch auf DOM-Änderungen reagieren

@@ -1,5 +1,32 @@
 # Bedienung
 
+## Installieren und Updates
+
+Die heruntergeladene Programmdatei (`VisuTeX_<Version>_windows_x64.exe` bzw. das AppImage) bringt alles mit. Beim ersten
+Start erscheint **„VisuTeX einrichten“**:
+
+- **Installationsort** – Vorschlag `%LOCALAPPDATA%\Programs\VisuTeX` (Windows) bzw. `~/.local/share/VisuTeX` (Linux),
+  über *Ändern …* frei wählbar; keine Administratorrechte nötig.
+- **Verknüpfung auf dem Desktop**, **Eintrag im Startmenü** (Linux: Anwendungsmenü), **Mit Windows starten** (Linux: beim
+  Anmelden) und **Beim Start nach Updates suchen**.
+- *Installieren und starten* kopiert das Programm dorthin und startet die installierte Fassung; die heruntergeladene Datei
+  kann danach gelöscht werden. *Ohne Installation verwenden* startet direkt (portabel) und fragt nicht erneut.
+- Wird später eine neuere heruntergeladene Datei gestartet, erscheint der Bildschirm wieder und ersetzt die installierte
+  Version (Einstellungen und Dokumente bleiben erhalten). Über das Installationsprogramm (`…-setup.exe`, `.msi`, `.deb`,
+  `.rpm`) installierte Fassungen zeigen keinen Einrichtungsbildschirm.
+
+**Deinstallieren:** Windows *Einstellungen → Apps → VisuTeX* oder *Datei → Info → Deinstallieren …*. Entfernt werden
+Programmdatei, Verknüpfungen, Autostart und entpackte Programmdaten – nur Dateien von VisuTeX, der Ordner nur, wenn er
+danach leer ist. Dokumente bleiben unverändert.
+
+**Updates:** Beim Start (abschaltbar unter *Datei → Optionen*) und über *Datei → Info → Nach Updates suchen* fragt
+VisuTeX bei GitHub nach einer neueren Version (auch Vorabversionen). Der Dialog zeigt die Versionshinweise;
+*Jetzt aktualisieren* lädt die neue Programmdatei, ersetzt die laufende und startet neu. *Diese Version überspringen*
+unterdrückt den Hinweis bis zur nächsten Version. Ohne Internet passiert nichts. Vor dem Ersetzen wird die Prüfsumme
+(SHA-256) der Datei kontrolliert. Wurde mit der Setup.exe installiert, lädt VisuTeX die neue Setup.exe und führt sie
+ohne Rückfragen aus (die Version unter „Apps“ stimmt danach). Bei MSI, `.deb` und `.rpm` öffnet *Release-Seite* die
+Download-Seite (Aktualisierung über das Installationsprogramm bzw. die Paketverwaltung).
+
 ## Überblick
 
 VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
@@ -49,13 +76,21 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
 - **Kommentare** (wie in Word): LaTeX-Kommentare (`% …`) erscheinen als Sprechblasen rechts neben der Seite und nehmen im
   Text keinen Platz ein (im PDF sind sie unsichtbar). Klick auf den Text bearbeitet, ✕ löscht; *Einfügen → Kommentar* legt
   einen neuen an (nach dem aktuellen Absatz). Reine Trennlinien wie `% =====` werden nicht angezeigt, bleiben aber im Code.
+- **Unsichtbare Layout-Befehle** (`\setcounter`, `\setlength`, `\begingroup`/`\endgroup`, `\setstretch`, `\pagestyle` …),
+  die allein in einer Zeile stehen, erzeugen im PDF nichts Sichtbares. Sie erscheinen deshalb als kleine graue Markierung
+  am **linken** Seitenrand (rechts stehen die Kommentare) und nehmen im Text keinen Platz ein. Überfahren zeigt den ganzen
+  Befehl, Klick bearbeitet, ✕ löscht. Mit eingeschalteten Formatierungszeichen (¶) stehen sie wieder als eigene Zeile im Text.
 - **Titelseiten aus LaTeX** (`\begin{titlepage}` in fremden Dokumenten) erscheinen als ganze Seite genau wie im PDF.
 - **Formatierungszeichen** (wie „Alle anzeigen“ in Word): *Start → Absatz →* ¶ bzw. `Strg+Umschalt+*` zeigt Absatzmarken (¶),
   Leerzeichen (·), geschützte Leerzeichen (°) und Zeilenumbrüche (↵). Nur Anzeige – Dokument, Seitenumbrüche und
   LaTeX bleiben unverändert; die Einstellung bleibt gespeichert.
 - **Lineal:** *Ansicht → Lineal*; die Dreiecke verschieben den linken/rechten Seitenrand (Alt: feine Schritte).
 - **Literatur:** *Referenzen → Zitat einfügen* – Einträge aus Zotero (Zotero muss laufen) oder als BibTeX; die Datei
-  `literatur.bib` liegt im Projektordner.
+  `literatur.bib` liegt im Projektordner. Zitierstil unter *Referenzen* bzw. *Dokumenteinstellungen → Literatur*:
+  **IEEE (deutsch)** schreibt „und“, „u. a.“, „Hrsg.“, „2. Aufl.“, „Bd.“, „Nr.“, „S.“, deutsche Monatsnamen und
+  „Anführungszeichen“; deutsche Vorlagen verwenden ihn automatisch, und beim Wechsel der Dokumentsprache schaltet VisuTeX
+  zwischen IEEE und IEEE (deutsch) um. Die Stildatei `visutex-ieee-de.bst` wird beim LaTeX-Export neben das Dokument
+  gelegt (kompiliert damit auch in TeX Live, MiKTeX und Overleaf).
 - **Fremde LaTeX-Projekte** (`.tex`, auch mit `\input`/`\include`, Bildern in Unterordnern, eigener Präambel) lassen sich
   öffnen, visuell bearbeiten und wieder als LaTeX speichern.
 

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useT } from "../i18n";
-import { availableFontFamilies, bibliographyStyles, normalizeSettings } from "../latex/settings";
+import { availableFontFamilies, bibliographyStyles, normalizeSettings, withLanguageBibliography } from "../latex/settings";
 import type { DocumentSettings } from "../latex/settings";
 import { Modal } from "./Dialogs";
 import { DOCUMENT_LANGUAGES } from "../latex/languages";
@@ -42,7 +42,7 @@ export function DocumentSettingsDialog({ settings, customPreamble, availableFont
   const [draft, setDraft] = useState<DocumentSettings>(settings);
   const [preamble, setPreamble] = useState(customPreamble ?? "");
   const [section, setSection] = useState<Section>((initialSection as Section) || "page");
-  const set = (patch: Partial<DocumentSettings>) => setDraft((current) => ({ ...current, ...patch }));
+  const set = (patch: Partial<DocumentSettings>) => setDraft((current) => withLanguageBibliography(current, { ...current, ...patch }));
   const setMargin = (key: keyof DocumentSettings["margins"], value: number) => set({ margins: { ...draft.margins, [key]: value } });
   const setHeader = (patch: Partial<DocumentSettings["headerFooter"]>) => set({ headerFooter: { ...draft.headerFooter, ...patch } });
   const setMeta = (patch: Partial<DocumentSettings["metadata"]>) => set({ metadata: { ...draft.metadata, ...patch } });

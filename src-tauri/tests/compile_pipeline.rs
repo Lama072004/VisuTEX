@@ -341,3 +341,80 @@ fn pdfa_document_metadata_compiles() {
     assert!(errors.is_empty(), "{errors:?}");
     assert!(output.pdf.starts_with(b"%PDF"));
 }
+
+#[test]
+#[ignore]
+fn german_ieee_bibliography_style_compiles() {
+    let root = project_dir("visutex-ieee-de");
+    std::fs::write(
+        root.join("literatur.bib"),
+        r#"@article{mueller2020,
+  author = {Anna Müller and Bernd Schmidt and Carla Weber},
+  title = {Strömungsmessung in Rohrleitungen},
+  journal = {Technische Mechanik},
+  volume = {40},
+  number = {3},
+  pages = {120--135},
+  month = mar,
+  year = {2020}
+}
+@book{knuth1984,
+  author = {Donald E. Knuth},
+  title = {The {\TeX}book},
+  publisher = {Addison-Wesley},
+  edition = {2},
+  year = {1984}
+}
+@inproceedings{lee2019,
+  author = {Lee, Kim and Park, Jin},
+  title = {Valve sizing revisited},
+  booktitle = {Proceedings of the Fluid Conference},
+  editor = {Tom Brown},
+  pages = {7--9},
+  year = {2019}
+}
+@phdthesis{huber2018,
+  author = {Huber, Max},
+  title = {Regelventile},
+  school = {TU Wien},
+  year = {2018}
+}
+"#,
+    )
+    .unwrap();
+    let latex = r"\documentclass{scrartcl}
+\usepackage[ngerman]{babel}
+\usepackage[numbers,sort&compress]{natbib}
+\begin{document}
+Siehe \cite{mueller2020,knuth1984,lee2019,huber2018}.
+\bibliographystyle{visutex-ieee-de}
+\bibliography{literatur}
+\end{document}
+";
+    let output = compile(
+        CompileRequest {
+            latex: latex.into(),
+            project_root: Some(root.clone()),
+            extra_search_paths: Vec::new(),
+        },
+        &bundle(),
+        &mut |note| eprintln!("  {note}"),
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
+    for message in &output.messages {
+        eprintln!("  {:?}: {}", message.severity, message.message);
+    }
+    assert!(output
+        .messages
+        .iter()
+        .all(|message| message.severity != "error" && !message.message.contains("couldn't open")));
+    // Zitate aufgelöst (BibTeX lief mit dem eingebetteten Stil)
+    assert!(
+        output.aux.contains(r"\bibcite{mueller2020}"),
+        "{}",
+        output.aux
+    );
+    let stored = visutex_lib::pdf::load(output.pdf).unwrap();
+    let png = visutex_lib::pdf::render_page_png(&stored, 0, 1.5).unwrap();
+    std::fs::write(root.join("seite1.png"), png).unwrap();
+}

@@ -1,6 +1,6 @@
 [package]
 name = "visutex"
-version = "0.2.0"
+version = "0.2.1"
 description = "VisuTeX – WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine"
 authors = ["Mathias Lampert"]
 license = "MIT"
@@ -66,8 +66,9 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 svg2pdf = "0.13"
 # Add-ons als ZIP installieren, TeX-Bundle lesen/schreiben
 zip = { version = "8", default-features = false, features = ["deflate"] }
-# Zotero (lokale API / Better BibTeX) – Anfragen aus Rust, kein Browser-CORS
-reqwest = { version = "0.13", default-features = false, features = ["blocking"] }
+# Zotero (lokale API / Better BibTeX) – Anfragen aus Rust, kein Browser-CORS;
+# Update-Suche über GitHub (HTTPS; rustls ist über Tectonic ohnehin enthalten)
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
 
 [dev-dependencies]
 

@@ -80,10 +80,15 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 │   │   ├── slides.rs                 Präsentation → Beamer
 │   │   ├── sketch.rs, sketch_catalog.rs  Skizze → TikZ, Bauteilkatalog
 │   │   ├── bibtex.rs, analysis.rs, project.rs, includes.rs, macros.rs, markers.rs, escape.rs, addon.rs
+│   │   ├── support.rs                eigene TeX-Dateien (deutscher IEEE-Stil) für Kompilieren und Export
 │   ├── src/compile.rs, prepare.rs, texbundle.rs, pdf.rs, preview.rs   Kompilieren und Vorschau
 │   ├── src/files.rs, images.rs, fonts.rs, system.rs, zotero.rs, addons.rs, templates.rs
+│   ├── src/embedded.rs           eingebettetes TeX-Bundle/Add-ons beim Start entpacken
+│   ├── src/setup.rs, updates.rs  Einrichtung (Installationsort, Verknüpfungen, Autostart, Deinstallation),
+│   │                             Update-Suche und -Installation über GitHub-Releases
 │   ├── src/bin/                  Entwicklerwerkzeuge (TeX-Bundle, Skizzen-Symbole)
-│   ├── resources/                tex-bundle.zip, sketch-symbols.json, mitgelieferte Add-ons
+│   ├── resources/                tex-bundle.zip, sketch-symbols.json, mitgelieferte Add-ons (in die EXE eingebettet),
+│   │                             tex/visutex-ieee-de.bst (deutscher IEEE-Stil, per include_str! eingebettet)
 │   └── tests/                    Round-Trip, Fremddokumente, Kompilier-Pipeline
 ├── tests/                        Node-Tests + Fixtures (Volltest-Dokument, Fremddokumente, Folien)
 ├── scripts/                      setup.mjs (Einrichtung), i18n-*.mjs (Übersetzungen), check-latex-engines.sh, portable.mjs (Testversion)

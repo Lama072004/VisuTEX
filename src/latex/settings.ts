@@ -5,6 +5,7 @@
  * Präambel erzeugen können.
  */
 import { DOCUMENT_LANGUAGE_IDS } from "./languages";
+export { ieeeStyleForLanguage, withLanguageBibliography } from "./bibliographyStyle";
 
 export type PaperFormat = "a4" | "a5" | "letter" | "legal" | "custom";
 export type Orientation = "portrait" | "landscape";
@@ -12,7 +13,7 @@ export type DocumentClass = "scrreprt" | "article";
 /** babel-Sprache (siehe document-languages.json) */
 export type DocumentLanguage = string;
 export type ParagraphStyle = "indent" | "skip";
-export type BibliographyStyle = "ieee" | "plainnat" | "plainnat-authoryear" | "abbrvnat" | "alpha";
+export type BibliographyStyle = "ieee" | "ieee-de" | "plainnat" | "plainnat-authoryear" | "abbrvnat" | "alpha";
 
 export type DocumentMargins = {
   top: number;
@@ -90,6 +91,7 @@ export const DEFAULT_FONT = "Latin Modern Roman";
 
 export const bibliographyStyles: Array<{ id: BibliographyStyle; label: string }> = [
   { id: "ieee", label: "IEEE (numerisch)" },
+  { id: "ieee-de", label: "IEEE (numerisch, deutsch)" },
   { id: "plainnat", label: "Numerisch (plainnat)" },
   { id: "abbrvnat", label: "Numerisch, abgekürzt (abbrvnat)" },
   { id: "plainnat-authoryear", label: "Autor-Jahr (plainnat)" },
@@ -236,7 +238,7 @@ export function normalizeSettings(input: unknown): DocumentSettings {
     },
     bibliography: {
       file: bibFile && isSafeRelativePath(bibFile) && /\.bib$/i.test(bibFile) ? bibFile.replace(/\\/g, "/") : "",
-      style: pick(bibliography.style, ["ieee", "plainnat", "plainnat-authoryear", "abbrvnat", "alpha"] as const, defaults.bibliography.style),
+      style: pick(bibliography.style, ["ieee", "ieee-de", "plainnat", "plainnat-authoryear", "abbrvnat", "alpha"] as const, defaults.bibliography.style),
     },
   };
 }

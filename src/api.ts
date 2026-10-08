@@ -179,6 +179,25 @@ function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
   return import("./devMock").then((mock) => mock.mockInvoke(command, args) as Promise<T>);
 }
 
+/** Einrichtung (Installation der heruntergeladenen EXE). */
+export type SetupState = { mode: "installed" | "portable"; installDir: string | null; desktopShortcut: boolean; startMenu: boolean; autostart: boolean };
+export type SetupStatus = {
+  version: string;
+  platform: "windows" | "linux" | "macos";
+  currentExe: string;
+  defaultDir: string;
+  state: SetupState | null;
+  runningInstalled: boolean;
+  packaged: boolean;
+  showSetup: boolean;
+  uninstallRequested: boolean;
+  /** Testmodus (nur Debug-Builds) */
+  sandbox: boolean;
+};
+export type InstallOptions = { dir: string; desktopShortcut: boolean; startMenu: boolean; autostart: boolean };
+export type UpdateAsset = { name: string; url: string; size: number; digest: string };
+export type UpdateInfo = { current: string; latest: string; newer: boolean; prerelease: boolean; page: string; notes: string; asset: UpdateAsset | null };
+
 export const api = {
   appInfo: (allowOnline: boolean) => call<AppInfo>("app_info", { allowOnline }),
   setTexOptions: (options: TexOptions) => call<void>("set_tex_options", { options }),
@@ -214,6 +233,15 @@ export const api = {
   sketchToLatex: (sketch: Sketch) => call<{ code: string; environment: string }>("sketch_to_latex", { sketch }),
   sketchFromCode: (code: string) => call<Sketch | null>("sketch_from_code", { code }),
   sketchCatalog: () => call<SketchCatalog>("sketch_catalog"),
+  setupStatus: () => call<SetupStatus>("setup_status"),
+  setupInstall: (options: InstallOptions) => call<string>("setup_install", { options }),
+  setupUsePortable: () => call<void>("setup_use_portable"),
+  setupSetAutostart: (enabled: boolean) => call<void>("setup_set_autostart", { enabled }),
+  setupUninstall: () => call<void>("setup_uninstall"),
+  updateCheck: () => call<UpdateInfo>("update_check"),
+  updateInstall: (asset: UpdateAsset) => call<void>("update_install", { asset }),
+  onUpdateProgress: (handler: (progress: { loaded: number; total: number }) => void) =>
+    isTauri ? listen<{ loaded: number; total: number }>("update-progress", (event) => handler(event.payload)) : Promise.resolve(() => undefined),
   onCompileProgress: (handler: (text: string) => void) =>
     isTauri ? listen<string>("compile-progress", (event) => handler(event.payload)) : Promise.resolve(() => undefined),
 

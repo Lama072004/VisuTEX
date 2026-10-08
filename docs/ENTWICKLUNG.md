@@ -92,11 +92,14 @@ Release-Build dauert wegen der Optimierung (LTO) 15–30 Minuten, danach deutlic
 | Befehl | Ergebnis | Zum Testen |
 |---|---|---|
 | `npm run exe` | `src-tauri/target/release/visutex.exe` (Release, ohne Installer) | direkt starten |
-| `npm run portable` | `src-tauri/target/release/VisuTeX-portable/` – EXE + `resources/` + `licenses/` in einem Ordner | Ordner kopieren und auf einem anderen Rechner starten |
+| `npm run portable` | `src-tauri/target/release/VisuTeX-portable/` – EXE + `licenses/` | EXE (oder Ordner) kopieren und auf einem anderen Rechner starten |
 | `npm run installer` | `src-tauri/target/release/bundle/nsis/VisuTeX_<Version>_x64-setup.exe` | wie ein Nutzer installieren |
 | `npm run installer:alle` | Windows: NSIS + MSI · Linux: `.deb`, `.rpm`, `.AppImage` | |
 
-- Die EXE findet das TeX-Bundle im Ordner `resources` neben sich (der Build legt ihn an); die portable Version enthält ihn.
+- **Die EXE enthält alles**, was sie braucht: TeX-Bundle, Skizzen-Symbole und mitgelieferte Add-ons sind eingebettet
+  (`main.rs` + `src/embedded.rs`; das Bundle bindet der Assembler per `.incbin` ein, die Add-on-Liste erzeugt `build.rs`). Beim ersten Start werden TeX-Bundle und Add-ons einmalig in
+  den Cache-Ordner der App entpackt (je Programmversion; alte Versionen werden aufgeräumt). Die EXE darf also allein kopiert
+  werden, z. B. auf den Desktop. Ein Ordner `resources` daneben ist nicht mehr nötig (nur noch Rückfall in der Entwicklung).
 - Die portable Version braucht WebView2 – unter Windows 10/11 ist es vorinstalliert. Der Installer bringt den
   WebView2-Offline-Installer mit; dafür lädt `tauri build` beim ersten Mal das Installationsprogramm von WebView2 und die
   NSIS-/WiX-Werkzeuge herunter (nur beim Bauen, nicht zur Laufzeit).
@@ -110,12 +113,38 @@ lokal. Ablauf:
 1. Änderungen committen und pushen.
 2. Tag mit Versionsnummer anlegen und hochladen, z. B. `v0.2.0-alpha.1` (GitHub Desktop: *History* → Rechtsklick auf den
    Commit → *Create Tag…* → *Push origin*; oder `git tag v0.2.0-alpha.1` und `git push origin v0.2.0-alpha.1`).
-3. Die CI baut Windows (Setup, MSI, portable ZIP) und Linux (`.deb`, `.rpm`, `.AppImage`), führt alle Tests aus,
+3. Die CI baut Windows (Setup, MSI, portable ZIP, einzelne EXE für die Update-Funktion) und Linux (`.deb`, `.rpm`, `.AppImage`), führt alle Tests aus,
    installiert die Linux-Pakete testweise auf mehreren Distributionen und legt danach einen **Release-Entwurf** mit allen
    Dateien an (Tags mit alpha/beta/rc als Vorabversion). Der erste Lauf dauert wegen vcpkg rund eine Stunde.
 4. Unter *Releases* den Entwurf öffnen, Text einfügen, *Publish release*.
 
 Lokal: `npm run portable:zip` erzeugt `VisuTeX_<Version>_x64-portable.zip` neben der EXE.
+
+**Einrichtung und Updates** (`src-tauri/src/setup.rs`, `updates.rs`, Oberfläche `src/components/SetupScreen.tsx`):
+
+- Die CI setzt bei Tags `VISUTEX_VERSION` (Tag ohne `v`, z. B. `0.2.1-alpha.1`); diese Version zeigt die App an und
+  vergleicht sie mit den GitHub-Releases (`api.github.com/repos/Lama072004/VisuTEX/releases`, Entwürfe zählen nicht –
+  erst *Publish release* macht ein Update sichtbar). Ohne Tag gilt die Version aus `Cargo.toml`.
+- Das Update lädt je nach Installationsart (`setup::install_kind`): einzelne EXE bzw. eigene Einrichtung →
+  `VisuTeX_<Version>_windows_x64.exe` (`portable.mjs --exe`), sonst die portable ZIP; Setup.exe-Installation →
+  neue `…-setup.exe`, läuft nach dem Beenden still (`/S /UPDATE`; nicht `/P` – dabei
+  erscheint die Sprachauswahl und das Update bliebe stehen) und startet VisuTeX neu; AppImage → AppImage;
+  MSI und deb/rpm → nur Hinweis mit Release-Seite. Nach einem Update zieht der Start die Version unter „Apps“ nach. Nur Adressen von `github.com` werden angenommen; die
+  SHA-256-Prüfsumme, die GitHub je Release-Datei angibt (`digest`), wird nach dem Download geprüft.
+- Einrichtungszustand: `<App-Daten>/einrichtung.json` (`%APPDATA%\com.mathias-lampert.visutex`). Löschen → der
+  Einrichtungsbildschirm erscheint wieder. In Debug-Builds nur mit `VISUTEX_SETUP=1` (die Update-Suche beim Start ist im
+  Vite-Entwicklungsmodus aus; *Datei → Info → Nach Updates suchen* geht immer).
+- Windows: Verknüpfungen per `WScript.Shell`, Autostart `HKCU\…\Run\VisuTeX`, Eintrag in „Apps“
+  `HKCU\…\Uninstall\VisuTeX` (`"<exe>" --uninstall`). Linux: `.desktop`-Dateien (Anwendungen, Desktop, `~/.config/autostart`).
+- **Testmodus** (nur Debug-Builds), um Einrichtung, Update und Deinstallation echt durchzuspielen, ohne das System zu
+  verändern:
+  - `VISUTEX_SETUP_SANDBOX=<Ordner>`: Installationsvorschlag, Verknüpfungen (echte `.lnk`), Autostart
+    (`autostart.txt`), „Apps“-Eintrag (`apps-eintrag.txt`) und `einrichtung.json` landen in diesem Ordner.
+  - `VISUTEX_UPDATE_FEED=http://127.0.0.1:<Port>/releases.json`: lokale Releases-Liste im GitHub-Format statt GitHub;
+    Downloads dürfen dann von `127.0.0.1` kommen (z. B. `python -m http.server`). Zum Testen eine Kopie der EXE mit
+    angehängten Bytes als „neue Version“ anbieten und `size`/`digest` (`sha256:…`) eintragen.
+  - Ohne Testmodus legt Installieren echte Verknüpfungen und Registry-Einträge an (entfernen über
+    *Datei → Info → Deinstallieren …*).
 
 **Was testen?** Neues Dokument aus einer Vorlage, Bild/Bilder nebeneinander einfügen, lange Tabelle, Formeln, Skizze,
 Kompilieren (F5) und PDF-Vorschau, Code-Ansicht hin und zurück, eigene `.tex`-Datei öffnen, Präsentation (Datei → Neu →

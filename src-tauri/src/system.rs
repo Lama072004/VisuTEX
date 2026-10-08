@@ -52,6 +52,20 @@ pub fn writable(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Hinweis, wo das mitgelieferte Bundle erwartet wird (häufigster Fehler: nur die EXE kopiert).
+fn resources_hint() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| dir.join("resources")))
+        .map(|dir| {
+            format!(
+                " Erwartet wird der Ordner „resources“ neben dem Programm ({}). Bei der portablen Version immer den ganzen Ordner kopieren bzw. eine Verknüpfung zur EXE anlegen – nicht nur VisuTeX.exe.",
+                display_path(&dir)
+            )
+        })
+        .unwrap_or_default()
+}
+
 fn item(
     id: &'static str,
     name: &str,
@@ -114,8 +128,9 @@ pub fn run(input: CheckInput) -> SystemCheck {
             "TeX-Pakete",
             "warning",
             format!(
-                "Kein mitgeliefertes TeX-Bundle gefunden. Pakete werden bei Bedarf online geladen und in {} gespeichert.",
-                display_path(&package_dir)
+                "Kein mitgeliefertes TeX-Bundle gefunden. Pakete werden bei Bedarf online geladen und in {} gespeichert.{}",
+                display_path(&package_dir),
+                resources_hint()
             ),
             Some("choose-bundle"),
         )),
@@ -123,7 +138,10 @@ pub fn run(input: CheckInput) -> SystemCheck {
             "bundle",
             "TeX-Pakete",
             "error",
-            "Kein TeX-Bundle gefunden. Bitte eine Bundle-Datei wählen oder das Nachladen aus dem Internet erlauben (mit wählbarem Speicherort).".into(),
+            format!(
+                "Kein TeX-Bundle gefunden. Bitte eine Bundle-Datei wählen oder das Nachladen aus dem Internet erlauben (mit wählbarem Speicherort).{}",
+                resources_hint()
+            ),
             Some("choose-bundle"),
         )),
     }

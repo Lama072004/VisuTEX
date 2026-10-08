@@ -94,13 +94,31 @@ pub fn bibliography_style(style: &str) -> (&'static str, &'static str) {
         "abbrvnat" => ("abbrvnat", "numbers,sort&compress"),
         "plainnat-authoryear" => ("plainnat", "round,authoryear"),
         "alpha" => ("alpha", "numbers"),
+        "ieee-de" => (super::support::IEEE_DE_BST, "numbers,sort&compress"),
         _ => ("IEEEtranN", "numbers,sort&compress"),
     }
+}
+
+/// IEEE-Stil passend zur Dokumentsprache: deutsche Dokumente erhalten „IEEE (deutsch)“.
+pub fn ieee_style_for_language(language: &str) -> &'static str {
+    if is_german(language) {
+        "ieee-de"
+    } else {
+        "ieee"
+    }
+}
+
+fn is_german(language: &str) -> bool {
+    matches!(
+        language,
+        "ngerman" | "naustrian" | "nswissgerman" | "german" | "austrian" | "swissgerman"
+    )
 }
 
 pub fn style_for_bst(bst: &str) -> Option<&'static str> {
     match bst {
         "IEEEtranN" | "IEEEtran" => Some("ieee"),
+        super::support::IEEE_DE_BST => Some("ieee-de"),
         "plainnat" => Some("plainnat"),
         "abbrvnat" => Some("abbrvnat"),
         "alpha" => Some("alpha"),

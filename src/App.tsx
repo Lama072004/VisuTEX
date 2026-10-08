@@ -16,7 +16,7 @@ import { Braces, Eye, PanelRight, Play, Presentation, Redo2, Save, Undo2 } from 
 import "katex/dist/katex.min.css";
 import "./App.css";
 import { api, errorText, isTauri } from "./api";
-import type { AppInfo, CompileFailure, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis } from "./api";
+import type { AppInfo, CompileFailure, SetupStatus, UpdateInfo, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis } from "./api";
 import { appExtensions } from "./editor/extensions";
 import { FormatPainter } from "./editor/formatPainter";
 import type { PageInfo } from "./editor/pagination";
@@ -31,7 +31,7 @@ import type { UiLanguage } from "./i18n";
 import { documentLanguage } from "./latex/languages";
 import { EDITOR_NATIVE_COMBOS, SHORTCUT_COMMANDS, comboFromEvent, resolveBindings } from "./shortcuts/shortcuts";
 import { COMMON_UNITS, formatQuantity, isSiunitxNumber } from "./latex/siunitx";
-import { defaultDocumentSettings, getPageDimensions, normalizeSettings } from "./latex/settings";
+import { defaultDocumentSettings, getPageDimensions, normalizeSettings, withLanguageBibliography } from "./latex/settings";
 import type { DocumentSettings } from "./latex/settings";
 import { getRuntime, setRuntime } from "./state/runtime";
 import type { EditRequest } from "./state/runtime";
@@ -51,6 +51,7 @@ import { SearchPanel } from "./components/SearchPanel";
 import { SketchPad } from "./sketch/SketchPad";
 import type { Sketch } from "./sketch/SketchPad";
 import { SystemCheckDialog } from "./components/SystemCheckDialog";
+import { SetupScreen, UpdateDialog } from "./components/SetupScreen";
 import { completionData } from "./monaco/completionData";
 import { newSlidesSession, normalizeDeck } from "./slides/model";
 import type { SlideFileActions, SlidesSession } from "./slides/model";
@@ -74,6 +75,8 @@ const defaultPrefs: AppPrefs = {
   packageCacheDir: "",
   bundlePath: "",
   shortcuts: {},
+  checkUpdates: true,
+  skipUpdate: "",
 };
 
 function loadPrefs(): AppPrefs {
@@ -205,6 +208,10 @@ function Workspace() {
   const [recent, setRecent] = useState<RecentFile[]>(loadRecent);
   const [recovery, setRecovery] = useState<Recovery | null>(loadRecovery);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
+  // Einrichtung (erster Start der heruntergeladenen EXE), Deinstallation und Updates
+  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [setupView, setSetupView] = useState<"setup" | "uninstall" | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
   const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle" });
   const [codeMessages, setCodeMessages] = useState<TexMessage[]>([]);
@@ -444,6 +451,46 @@ function Workspace() {
     reloadAddons();
   }, [prefs, texOptions, reloadAddons, runSystemCheck]);
 
+  const refreshSetup = useCallback(async () => {
+    const status = await api.setupStatus();
+    setSetupStatus(status);
+    return status;
+  }, []);
+  // Beim Start: Einrichtung bzw. Deinstallation anzeigen, sonst (falls gewünscht) nach Updates suchen
+  const startupUpdateDone = useRef(false);
+  useEffect(() => {
+    if (!isTauri) return;
+    void refreshSetup()
+      .then((status) => {
+        if (status.uninstallRequested) setSetupView("uninstall");
+        else if (status.showSetup) setSetupView("setup");
+        else if (!import.meta.env.DEV && !startupUpdateDone.current && stateRef.current.prefs.checkUpdates) {
+          startupUpdateDone.current = true;
+          void api
+            .updateCheck()
+            .then((info) => {
+              if (info.newer && info.latest !== stateRef.current.prefs.skipUpdate) setUpdateInfo(info);
+            })
+            .catch(() => undefined); // offline – beim nächsten Start erneut
+        }
+      })
+      .catch(() => undefined);
+  }, [refreshSetup]);
+
+  /** Manuelle Update-Suche (Datei → Info); liefert eine Meldung, wenn kein Dialog folgt. */
+  const checkForUpdates = useCallback(async (): Promise<string> => {
+    try {
+      const info = await api.updateCheck();
+      if (info.newer) {
+        setUpdateInfo(info);
+        return "";
+      }
+      return `${t("VisuTeX ist aktuell")} (${info.current}).`;
+    } catch (error) {
+      return `${t("Update-Suche fehlgeschlagen")}: ${errorText(error)}`;
+    }
+  }, [t]);
+
   /** Fragt nach einem Ordner für nachgeladene TeX-Pakete; aktiviert das Nachladen. */
   const choosePackageDir = useCallback(async (): Promise<boolean> => {
     const dir = await open({ directory: true, title: t("Speicherort für nachgeladene TeX-Pakete wählen") });
@@ -479,7 +526,7 @@ function Workspace() {
 
   const setSettings = useCallback(
     (next: DocumentSettings) => {
-      setSettingsState(normalizeSettings(next));
+      setSettingsState(normalizeSettings(withLanguageBibliography(stateRef.current.settings, next)));
       docCode.current = null;
       markDirty();
     },
@@ -2215,6 +2262,28 @@ function Workspace() {
         />
       )}
 
+      {setupView && setupStatus && (
+        <SetupScreen
+          status={{ ...setupStatus, uninstallRequested: setupView === "uninstall" }}
+          checkUpdates={prefs.checkUpdates}
+          onCheckUpdatesChange={(checkUpdates) => setPrefs((current) => ({ ...current, checkUpdates }))}
+          onClose={() => {
+            setSetupView(null);
+            void refreshSetup().catch(() => undefined);
+          }}
+        />
+      )}
+      {updateInfo && (
+        <UpdateDialog
+          info={updateInfo}
+          onSkip={() => {
+            setPrefs((current) => ({ ...current, skipUpdate: updateInfo.latest }));
+            setUpdateInfo(null);
+          }}
+          onClose={() => setUpdateInfo(null)}
+        />
+      )}
+
       {systemCheckOpen && (
         <SystemCheckDialog
           check={systemCheck}
@@ -2269,6 +2338,10 @@ function Workspace() {
           }
           canClose={Boolean(docState) || (slidesOpen && Boolean(slidesSession))}
           appInfo={appInfo}
+          setup={setupStatus}
+          onCheckUpdates={checkForUpdates}
+          onSetupChanged={() => void refreshSetup().catch(() => undefined)}
+          onShowSetup={(kind) => setSetupView(kind)}
           prefs={prefs}
           recent={recent}
           recovery={recovery ? { name: recovery.name, savedAt: recovery.savedAt } : null}

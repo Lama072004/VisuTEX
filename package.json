@@ -4,7 +4,7 @@
   "description": "VisuTeX – WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine",
   "license": "MIT",
   "author": "Mathias Lampert",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

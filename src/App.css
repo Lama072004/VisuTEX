@@ -1907,6 +1907,12 @@ kbd {
   max-width: none;
   display: block;
 }
+/* Endlosansicht: kein Seitenumbruch fängt den unteren Seitenrand der Vorschau ab → Platz
+   dafür lassen, sonst überdeckt das Bild den folgenden Text (Titelseiten stehen am Anfang,
+   oben reicht der Rand des Blatts) */
+.paper.continuous .raw-latex-block.is-fullpage {
+  margin-bottom: calc(var(--margin-bottom) + 12px);
+}
 .raw-latex-block.is-fullpage .raw-latex-label {
   position: absolute;
   top: 0;
@@ -2006,6 +2012,115 @@ kbd {
   font: inherit;
   color: inherit;
   padding: 3px 5px;
+}
+/* Unsichtbare Layout-Befehle (\setcounter, \begingroup …): ohne Höhe im Text, kleine
+   Code-Markierung im linken Seitenrand (rechts stehen die Kommentare). */
+.document-body > .latex-layout-anchor,
+.latex-layout-anchor {
+  position: relative;
+  height: 0;
+  margin: 0 !important;
+  padding: 0;
+  border: 0;
+}
+.latex-layout-marker {
+  position: absolute;
+  top: -0.1em;
+  right: calc(100% + 6px);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(var(--margin-left, 25mm) - 10px);
+  font: 10px/1.35 Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  text-align: left;
+  text-indent: 0;
+  white-space: nowrap;
+  z-index: 3;
+}
+.latex-layout-code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1px 4px;
+  border: 1px dashed #b9b9c0;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #6b7280;
+  font: inherit;
+  cursor: pointer;
+}
+.latex-layout-code:hover,
+.latex-layout-anchor.is-selected .latex-layout-code {
+  border-style: solid;
+  border-color: var(--accent);
+  color: #374151;
+}
+/* beim Überfahren ganz zeigen (der Rand ist oft schmaler als der Befehl) */
+.latex-layout-marker:hover {
+  max-width: 460px;
+  z-index: 6;
+}
+.latex-layout-marker:hover .latex-layout-code {
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+.latex-layout-delete {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0 2px;
+  font-size: 10px;
+}
+.latex-layout-marker:hover .latex-layout-delete,
+.latex-layout-anchor.is-selected .latex-layout-delete {
+  display: inline;
+}
+.latex-layout-delete:hover {
+  color: #b42318;
+}
+.latex-layout-marker.is-editing {
+  max-width: none;
+  width: 340px;
+}
+.latex-layout-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 4px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: #fff;
+  color: #1f2328;
+  font: 11px/1.4 Consolas, "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+/* Inline-Layout-Befehle: ohne Breite im Text; die Markierung schiebt commentLayout.ts an den
+   linken Rand. Absätze nur aus solchen Befehlen nehmen keine Höhe ein (außer bei ¶). */
+.latex-layout-inline {
+  position: relative;
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  vertical-align: baseline;
+}
+.latex-layout-marker.is-inline {
+  right: auto;
+  top: 0;
+  line-height: 1.35;
+}
+.latex-layout-inline.is-selected .latex-layout-code {
+  border-style: solid;
+  border-color: var(--accent);
+  color: #374151;
+}
+.ProseMirror:not(.vtx-show-marks) .layout-only-paragraph {
+  height: 0;
+  min-height: 0;
+  margin: 0 !important;
+  padding: 0;
+  overflow: visible;
 }
 /* Platz für die Randkommentare rechts neben der Seite */
 .paper-outer:has(.latex-comment-balloon) {
@@ -3339,4 +3454,112 @@ kbd {
   padding: 0 !important;
   border: none !important;
   background: transparent !important;
+}
+
+/* ---------------------------------------------------------------- Einrichtung, Deinstallation, Updates */
+
+.setup-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  overflow: auto;
+}
+.setup-screen.overlay {
+  background: rgba(0, 0, 0, 0.45);
+}
+.setup-card {
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 28px 32px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.setup-card h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+.setup-card h1 svg {
+  color: var(--accent);
+}
+.setup-card p {
+  margin: 0;
+  line-height: 1.5;
+}
+.setup-version {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+.setup-note {
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.setup-card .path-field input {
+  flex: 1;
+  min-width: 0;
+}
+.setup-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.setup-error {
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+.setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.update-notes {
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font: 12.5px/1.45 var(--ui-font);
+  white-space: pre-wrap;
+}
+.update-progress {
+  position: relative;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.update-progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.update-progress > span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--text);
 }

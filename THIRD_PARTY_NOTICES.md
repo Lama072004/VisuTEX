@@ -104,6 +104,11 @@ im Bundle bzw. sind in [TeX Live](https://tug.org/texlive/) und auf
 [CTAN](https://ctan.org/) einsehbar. Da die Dateien unverändert weitergegeben
 werden, sind die Bedingungen der LPPL erfüllt.
 
+**Geänderte Datei:** `src-tauri/resources/tex/visutex-ieee-de.bst` ist eine eingedeutschte
+Fassung von `IEEEtranN.bst` (© 2003–2015 Michael Shell, LPPL 1.3). Wie von der Lizenz verlangt,
+ist sie umbenannt, im Dateikopf als geändert gekennzeichnet und nennt VisuTeX als Ansprechpartner;
+alle ursprünglichen Hinweise sind erhalten. Sie wird beim LaTeX-Export neben das Dokument gelegt.
+
 Das Bundle lässt sich mit `cargo run --features dev-tools --bin build-tex-bundle`
 reproduzierbar aus dem Tectonic-Cache erzeugen.
 

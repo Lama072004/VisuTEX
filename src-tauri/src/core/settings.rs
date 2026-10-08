@@ -68,7 +68,7 @@ pub const PDF_STANDARDS: &[&str] = &["a-2b", "a-3b"];
 pub struct Bibliography {
     /// Pfad der .bib-Datei relativ zum Projektordner.
     pub file: String,
-    /// ieee | plainnat | abbrvnat | plainnat-authoryear | alpha
+    /// ieee | ieee-de | plainnat | abbrvnat | plainnat-authoryear | alpha
     pub style: String,
 }
 
@@ -345,6 +345,7 @@ impl DocumentSettings {
                     bibliography.get("style"),
                     &[
                         "ieee",
+                        "ieee-de",
                         "plainnat",
                         "abbrvnat",
                         "plainnat-authoryear",

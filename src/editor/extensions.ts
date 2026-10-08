@@ -55,6 +55,7 @@ import {
 import { Pagination } from "./pagination";
 import { FormattingMarks } from "./formattingMarks";
 import { CommentLayout } from "./commentLayout";
+import { LayoutParagraphs } from "./layoutParagraphs";
 import { SearchReplace } from "./search";
 import { TableCaptions } from "./tableCaptions";
 
@@ -102,6 +103,7 @@ export function appExtensions(): AnyExtension[] {
     Pagination,
     FormattingMarks,
     CommentLayout,
+    LayoutParagraphs,
     ExtraKeys,
   ];
 }

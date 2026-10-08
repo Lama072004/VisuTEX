@@ -195,6 +195,30 @@ fn full_document_round_trips_through_latex() {
         again.body.replace("eingebettet-", ""),
         exported.body.replace("eingebettet-", "")
     );
+
+    // Deutscher IEEE-Stil: eigene .bst wird mitgeschrieben (CI kompiliert doc-de.tex mit TeX Live)
+    let mut german = settings.clone();
+    german.bibliography.style = "ieee-de".into();
+    let exported_de = export_document(
+        &doc,
+        &ExportOptions {
+            settings: &german,
+            custom_preamble: None,
+            addon_preamble: &addon,
+        },
+    );
+    assert!(exported_de
+        .latex
+        .contains(r"\bibliographystyle{visutex-ieee-de}"));
+    std::fs::write(out_dir.join("doc-de.tex"), &exported_de.latex).unwrap();
+    let written =
+        visutex_lib::core::support::write_files(&exported_de.latex, &out_dir, true).unwrap();
+    assert_eq!(written, vec!["visutex-ieee-de.bst".to_string()]);
+    let imported_de = import_latex(&exported_de.latex, &german);
+    assert_eq!(
+        imported_de.settings_patch["bibliography"]["style"],
+        "ieee-de"
+    );
 }
 
 #[test]
