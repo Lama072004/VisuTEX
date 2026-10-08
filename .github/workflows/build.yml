@@ -68,10 +68,21 @@ jobs:
         with:
           path: src-tauri/target/vcpkg
           key: vcpkg-${{ matrix.target }}-${{ hashFiles('src-tauri/Cargo.toml') }}
+          # Cargo.toml ändert sich auch bei jeder neuen Versionsnummer → sonst ginge der Cache
+          # verloren und vcpkg müsste alles neu bauen. Der letzte Stand wird übernommen;
+          # `cargo vcpkg build` ergänzt nur, was sich wirklich geändert hat.
+          restore-keys: |
+            vcpkg-${{ matrix.target }}-
 
       - name: Native Bibliotheken bauen (cargo vcpkg)
         working-directory: src-tauri
         run: |
+          # Der Rust-Cache (target/) kann Reste von target/vcpkg ohne Git-Daten mitbringen;
+          # dann scheitert `git clone` („destination path already exists“) → Reste entfernen.
+          if [ -d target/vcpkg ] && [ ! -d target/vcpkg/.git ]; then
+            echo "Unvollständiges target/vcpkg (ohne .git) – wird entfernt"
+            rm -rf target/vcpkg
+          fi
           cargo install cargo-vcpkg --locked
           cargo vcpkg -v build --target ${{ matrix.target }}
 
