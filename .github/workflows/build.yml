@@ -85,6 +85,10 @@ jobs:
           fi
           cargo install cargo-vcpkg --locked
           cargo vcpkg -v build --target ${{ matrix.target }}
+          # Zwischenordner der C-Bibliotheken werden nicht mehr gebraucht (fertig in installed/).
+          # Sie enthalten tote Verknüpfungen, über die der Rust-Cache beim Aufräumen stolpert
+          # („ENOENT … buildtrees/…/tests/target“ als Annotation) – und machen die Caches nur größer.
+          rm -rf target/vcpkg/buildtrees
 
       - name: vcpkg-Bibliotheken (Linux, zur Fehlersuche)
         if: runner.os == 'Linux'
@@ -142,7 +146,7 @@ jobs:
   # (inkl. BibTeX) kompilieren – unabhängig vom mitgelieferten Bundle.
   latex-engines:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # fest statt ubuntu-latest (wechselt ab 19.10.2026 auf Ubuntu 26)
     container: texlive/texlive:latest
     steps:
       - uses: actions/checkout@v5
@@ -161,7 +165,7 @@ jobs:
   # prüfen, dass alle Bibliotheken gefunden werden (ohne weitere Schritte).
   linux-distributionen:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # fest statt ubuntu-latest (wechselt ab 19.10.2026 auf Ubuntu 26)
     strategy:
       fail-fast: false
       matrix:
@@ -211,6 +215,9 @@ jobs:
               pacman -Syu --noconfirm --needed base-devel binutils webkit2gtk-4.1 gtk3 fontconfig
               useradd -m bauer
               cp "$deb" packaging/arch/
+              # Version aus dem Dateinamen der .deb übernehmen (PKGBUILD nicht bei jeder Version anpassen)
+              version=$(basename "$deb" | sed -E 's/^VisuTeX_(.+)_amd64\.deb$/\1/')
+              sed -i "s/^pkgver=.*/pkgver=${version}/" packaging/arch/PKGBUILD
               chown -R bauer packaging/arch
               su bauer -c "cd packaging/arch && makepkg --noconfirm --skipchecksums"
               pacman -U --noconfirm packaging/arch/*.pkg.tar.zst
@@ -245,7 +252,7 @@ jobs:
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [build, latex-engines, linux-distributionen]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # fest statt ubuntu-latest (wechselt ab 19.10.2026 auf Ubuntu 26)
     permissions:
       contents: write
     steps:

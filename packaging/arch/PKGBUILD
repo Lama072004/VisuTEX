@@ -7,11 +7,11 @@
 # Die TeX-Engine (Tectonic) und das TeX-Bundle sind enthalten – es wird keine
 # TeX-Distribution benötigt.
 pkgname=visutex-bin
-pkgver=0.2.0
+pkgver=0.2.1
 pkgrel=1
 pkgdesc="WYSIWYG-LaTeX-Editor mit eingebauter TeX-Engine"
 arch=('x86_64')
-url="https://github.com/"
+url="https://github.com/Lama072004/VisuTEX"
 license=('custom')
 depends=('webkit2gtk-4.1' 'gtk3' 'fontconfig' 'hicolor-icon-theme')
 provides=('visutex')
