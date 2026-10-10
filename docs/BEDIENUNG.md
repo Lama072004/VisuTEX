@@ -53,6 +53,29 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
 
 - **Menüband:** Start (Schrift, Absatz, Formatvorlagen), Einfügen (Tabellen, Bilder, Formeln, Skizzen, Querverweise,
   Fußnoten, Umgebungen …), Layout (Seite, Ränder, Spalten, Sprache), Referenzen (Zitate, Verzeichnisse), Ansicht.
+- **Schnellzugriff** (Titelleiste links, wie in Office): Speichern, Rückgängig, Wiederholen und beliebige weitere Befehle.
+  Das kleine **▾** daneben blendet häufige Befehle ein/aus; *Weitere Befehle …* bzw. *Datei → Optionen →
+  Symbolleiste für den Schnellzugriff* bietet alle Befehle zum Hinzufügen, Entfernen und Umsortieren (höchstens 16).
+- **Teilen:** Rechtsklick auf die Titelleiste → *Gespeicherte Datei teilen …* (auch als Befehl „Teilen …“ für den
+  Schnellzugriff oder ein Tastenkürzel). Der Dialog nennt ausdrücklich, **welche Datei** geteilt wird (Name, Pfad,
+  Speicherzeitpunkt): immer die **zuletzt gespeicherte Fassung**. Gibt es ungespeicherte Änderungen, weist er darauf hin
+  und bietet *Speichern und teilen* an. Windows öffnet sein Teilen-Fenster (E-Mail, Teams, Nearby Sharing, OneDrive …),
+  Linux das E-Mail-Programm mit der Datei als Anhang. Außerdem: *Im Ordner anzeigen* und *Dateipfad kopieren*.
+- **Formeln (wie in Word/OneNote):** *Einfügen → Formel* (abgesetzt) bzw. *Inline-Formel* öffnet sofort ein leeres
+  Formelfeld. Darin wird **grafisch** getippt: `/` erzeugt einen Bruch, `^` und `_` Hoch-/Tiefstellung, Tab bzw.
+  Pfeiltasten springen zwischen den Feldern (Zähler, Nenner, Grenzen …), `lpha` + Leertaste ergibt α. Sobald eine
+  Formel ausgewählt ist, erscheint die Registerkarte **Formel**:
+  - *Tools:* neue Formel, Formel im Text, **Häufige Formeln** (Pythagoras, Lösungsformel, binomischer Lehrsatz,
+    Fourier-/Taylor-Reihe, Ohmsches Gesetz …).
+  - *Bearbeitung:* zwischen **Grafisch** und **LaTeX**-Code umschalten, normalen Text einfügen.
+  - *Symbole:* Grundlegende Mathematik, griechische Buchstaben (klein/groß), buchstabenähnliche Symbole (ℕ, ℝ …),
+    Operatoren, Relationen, negierte Relationen, Pfeile, Mengen und Logik, Geometrie.
+  - *Strukturen:* Bruch, Skript (hoch/tief), Wurzel, Integral, großer Operator (Summe, Produkt …), Klammer (inkl.
+    Betrag, Fallunterscheidung), Funktion, Akzent, Grenzwert und Log, Operator, Matrix – jeweils als Galerie mit
+    Vorschau; Platzhalter füllt man direkt aus.
+
+  Mehrzeilige Formeln (`align`, `gather` …) öffnen im LaTeX-Modus (mit Live-Vorschau). Eine Formel wird nur
+  umgeschrieben, wenn man sie tatsächlich ändert; eine geleerte Formel wird entfernt. Esc kehrt in den Text zurück.
 - **Code-Ansicht** (`LaTeX` in der Titelleiste): das vollständige, portable LaTeX-Dokument. Änderungen dort werden beim
   Zurückschalten übernommen; unveränderte Teile bleiben zeichengenau erhalten.
 - **Kompilieren:** `F5` bzw. *Ansicht → Kompilieren*. Die eingebaute Engine braucht keine LaTeX-Installation; Fehler stehen

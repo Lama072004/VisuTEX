@@ -67,7 +67,9 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 │   │                             Mini-Renderer (KaTeX), siunitx-Anzeige
 │   ├── slides/                   Folien-Editor: Modell, Darstellung, Editor, Textfelder
 │   ├── sketch/                   Skizzen-Werkzeug (TikZ/CircuiTikZ)
-│   ├── shortcuts/                Tastenkürzel: Befehle, Belegung, Reiter „Tastenkürzel“
+│   ├── shortcuts/                Tastenkürzel: Befehle, Belegung, Reiter „Tastenkürzel“; quickAccess.ts (Schnellzugriff)
+│   ├── math/                     Formel-Editor: MathLive-Feld (MathEditor.tsx), Registerkarte „Formel“
+│   │                             (MathRibbon.tsx), Symbole/Strukturen (mathCatalog.ts), Verbindung (mathBridge.ts)
 │   ├── i18n/                     Oberflächensprachen: index.ts + locales/<code>.json
 │   ├── state/                    Laufzeitkontext für NodeViews
 │   └── monaco/                   LaTeX-Unterstützung für den Code-Editor
@@ -84,6 +86,7 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 │   ├── src/compile.rs, prepare.rs, texbundle.rs, pdf.rs, preview.rs   Kompilieren und Vorschau
 │   ├── src/files.rs, images.rs, fonts.rs, system.rs, zotero.rs, addons.rs, templates.rs
 │   ├── src/embedded.rs           eingebettetes TeX-Bundle/Add-ons beim Start entpacken
+│   ├── src/share.rs              Teilen der gespeicherten Datei (Windows-Teilen-Fenster, Linux: xdg-email)
 │   ├── src/setup.rs, updates.rs  Einrichtung (Installationsort, Verknüpfungen, Autostart, Deinstallation),
 │   │                             Update-Suche und -Installation über GitHub-Releases
 │   ├── src/bin/                  Entwicklerwerkzeuge (TeX-Bundle, Skizzen-Symbole)

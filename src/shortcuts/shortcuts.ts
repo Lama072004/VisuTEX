@@ -28,6 +28,7 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
   { id: "file.open", label: "Öffnen", category: "Datei", scope: "global", defaults: ["Ctrl+O"] },
   { id: "file.save", label: "Speichern", category: "Datei", scope: "global", defaults: ["Ctrl+S"] },
   { id: "file.saveAs", label: "Speichern unter", category: "Datei", scope: "global", defaults: ["Ctrl+Shift+S"] },
+  { id: "file.share", label: "Teilen …", category: "Datei", scope: "global", defaults: [] },
   { id: "file.exportTex", label: "Als LaTeX exportieren", category: "Datei", scope: "global", defaults: [] },
   { id: "file.exportPdf", label: "Als PDF exportieren", category: "Datei", scope: "global", defaults: ["Ctrl+P"] },
   { id: "file.compile", label: "PDF kompilieren", category: "Datei", scope: "global", defaults: ["F5"] },

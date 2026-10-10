@@ -73,6 +73,7 @@ vollständige Liste lässt sich jederzeit erzeugen, z. B. mit
 | Tiptap 3, ProseMirror | MIT |
 | Monaco Editor | MIT |
 | KaTeX (inkl. KaTeX-Schriften) | MIT |
+| MathLive (grafischer Formel-Editor, inkl. KaTeX-Schriften) | MIT |
 | lucide-react (Symbole) | ISC |
 | DOMPurify | MPL-2.0 OR Apache-2.0 (genutzt: Apache-2.0) |
 | @tauri-apps/* | MIT OR Apache-2.0 |

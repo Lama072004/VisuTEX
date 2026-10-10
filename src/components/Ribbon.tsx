@@ -82,6 +82,7 @@ import type { DocumentSettings } from "../latex/settings";
 import type { InstalledAddon, RibbonEntry, Snippet } from "../api";
 import { useT } from "../i18n";
 import { DOCUMENT_LANGUAGES } from "../latex/languages";
+import { useMathRibbonGroups } from "../math/MathRibbon";
 
 export type RibbonActions = {
   openBackstage: () => void;
@@ -97,7 +98,8 @@ export type RibbonActions = {
   insertImage: () => void;
   insertSubfigures: () => void;
   insertTikz: (environment: "tikzpicture" | "circuitikz") => void;
-  insertMath: (inline: boolean) => void;
+  /** Neue Formel (leer, sofort zum Bearbeiten geöffnet; optional mit Vorlage) */
+  insertMath: (inline: boolean, template?: string) => void;
   insertLink: () => void;
   insertCrossReference: () => void;
   insertFootnote: () => void;
@@ -152,7 +154,7 @@ type Props = {
   formatPainterActive: boolean;
 };
 
-type TabId = "start" | "insert" | "layout" | "references" | "view" | "table" | "image" | "addons";
+type TabId = "start" | "insert" | "layout" | "references" | "view" | "table" | "image" | "addons" | "math";
 
 const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 const LINE_SPACINGS = ["1", "1.15", "1.5", "2", "2.5", "3"];
@@ -408,6 +410,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         tableBreaks: current.getAttributes("table").breakAcrossPages === true,
         listOptions: String(current.getAttributes(current.isActive("orderedList") ? "orderedList" : "bulletList").listOptions ?? ""),
         imageSelected: current.isActive("image"),
+        mathSelected: current.isActive("inlineMath") || current.isActive("mathBlock"),
         canUndo: current.can().undo(),
         canRedo: current.can().redo(),
       };
@@ -431,17 +434,22 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
     ...(addonEntries.length ? [{ id: "addons" as TabId, label: t("Add-ons") }] : []),
     ...(state?.inTable && mode === "visual" ? [{ id: "table" as TabId, label: t("Tabelle"), contextual: true }] : []),
     ...(state?.imageSelected && mode === "visual" ? [{ id: "image" as TabId, label: t("Bild"), contextual: true }] : []),
+    ...(state?.mathSelected && mode === "visual" ? [{ id: "math" as TabId, label: t("Formel"), contextual: true }] : []),
   ];
   const activeTab = tabs.some((entry) => entry.id === tab) ? tab : "start";
 
   // Kontextuelle Tabs automatisch anzeigen, wenn eine Tabelle/ein Bild ausgewählt wird.
-  const previousContext = useRef({ table: false, image: false });
+  const previousContext = useRef({ table: false, image: false, math: false });
   useEffect(() => {
     const table = Boolean(state?.inTable);
     const image = Boolean(state?.imageSelected);
+    const math = Boolean(state?.mathSelected);
     if (image && !previousContext.current.image) setTab("image");
-    previousContext.current = { table, image };
-  }, [state?.inTable, state?.imageSelected]);
+    // Formel ausgewählt → Registerkarte „Formel“ (wie in Word)
+    if (math && !previousContext.current.math) setTab("math");
+    previousContext.current = { table, image, math };
+  }, [state?.inTable, state?.imageSelected, state?.mathSelected]);
+  const mathGroups = useMathRibbonGroups({ newFormula: (inline, template) => actions.insertMath(inline, template) });
 
   const chain = () => editor?.chain().focus();
   const visual = mode === "visual" && Boolean(editor);
@@ -1054,6 +1062,10 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         ))}
       </Stack>
     ));
+  }
+
+  if (activeTab === "math") {
+    for (const group of mathGroups) add(group.id, group.label, group.content);
   }
 
   if (activeTab === "image") {

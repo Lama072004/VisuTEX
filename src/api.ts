@@ -239,6 +239,8 @@ export const api = {
   setupSetAutostart: (enabled: boolean) => call<void>("setup_set_autostart", { enabled }),
   setupUninstall: () => call<void>("setup_uninstall"),
   updateCheck: () => call<UpdateInfo>("update_check"),
+  /** Gespeicherte Datei teilen (Windows: Teilen-Fenster, Linux: E-Mail mit Anhang); liefert den Dateinamen */
+  shareFile: (path: string) => call<string>("share_file", { path }),
   updateInstall: (asset: UpdateAsset) => call<void>("update_install", { asset }),
   onUpdateProgress: (handler: (progress: { loaded: number; total: number }) => void) =>
     isTauri ? listen<{ loaded: number; total: number }>("update-progress", (event) => handler(event.payload)) : Promise.resolve(() => undefined),

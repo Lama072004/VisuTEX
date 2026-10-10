@@ -15,6 +15,7 @@ import { getRuntime, renderContext, useRuntime } from "../state/runtime";
 import { cachedPreview, isCommentOnly, requestPreview } from "./latexPreview";
 import { commentText, isDividerOnly, replaceCommentText } from "./comments";
 import { isLayoutOnly, layoutSummary } from "./layoutCommands";
+import { MathEditPanel, defaultMathMode } from "../math/MathEditor";
 import { frontmatterTitles, subfigureDefaultPercent, titlePageFields } from "./schema";
 import type { FrontmatterKind, SubfigureItem, TitlePageField } from "./schema";
 import { documentLanguage } from "../latex/languages";
@@ -120,89 +121,92 @@ const labelPattern = /^[A-Za-z0-9:._-]*$/;
 
 // ---------------------------------------------------------------- Formeln
 
-export function MathBlockView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+/** Formel übernehmen; eine geleerte Formel wird entfernt (leeres `$$` wäre ungültiges LaTeX). */
+function commitMath(latex: string, updateAttributes: ReactNodeViewProps["updateAttributes"], deleteNode: () => void) {
+  try {
+    if (latex.trim()) updateAttributes({ latex });
+    else deleteNode();
+  } catch {
+    // Knoten existiert nicht mehr (Dokument gewechselt)
+  }
+}
+
+/** Cursor hinter die Formel setzen und zurück in den Text. */
+function leaveMath(editor: ReactNodeViewProps["editor"], getPos: ReactNodeViewProps["getPos"], size: number) {
+  const pos = typeof getPos === "function" ? getPos() : undefined;
+  if (typeof pos === "number") editor.chain().focus().setTextSelection(pos + size).run();
+}
+
+export function MathBlockView({ node, updateAttributes, selected, deleteNode, editor, getPos }: ReactNodeViewProps) {
   const t = useT();
   const latex = String(node.attrs.latex ?? "");
   const environment = String(node.attrs.environment || "equation");
   const numbered = Boolean(node.attrs.numbered) && node.attrs.numbered !== "false";
   const label = String(node.attrs.label ?? "");
-  const [draft, setDraft] = useState(latex);
-  const textareaRef = useAutoHeight(draft);
-  useEffect(() => setDraft(latex), [latex]);
-  const preview = useMemo(() => renderKatex(selected ? draft : latex, true, environment), [draft, latex, selected, environment]);
+  const preview = useMemo(() => renderKatex(latex, true, environment), [latex, environment]);
 
   return (
-    <NodeViewWrapper className={`math-block${selected ? " is-selected" : ""}`} data-numbered={numbered ? "true" : undefined} data-label={label || undefined}>
-      <div className="math-rendered" dangerouslySetInnerHTML={{ __html: preview }} />
+    <NodeViewWrapper className={`math-block${selected ? " is-selected is-editing" : ""}`} data-numbered={numbered ? "true" : undefined} data-label={label || undefined}>
+      {!selected && <div className="math-rendered" dangerouslySetInnerHTML={{ __html: preview }} />}
       {numbered && <span className="equation-number" aria-hidden="true" />}
       {selected && (
-        <EditPanel>
-          <textarea
-            ref={textareaRef}
-            className="code-input"
-            value={draft}
-            spellCheck={false}
-            autoFocus
-            aria-label={t("LaTeX-Formel")}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={() => draft !== latex && updateAttributes({ latex: draft })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) updateAttributes({ latex: draft });
-            }}
-          />
-          <div className="node-edit-row">
-            <label>
-              {t("Umgebung")}
-              <select value={environment} onChange={(event) => updateAttributes({ latex: draft, environment: event.currentTarget.value })}>
-                <option value="equation">equation</option>
-                <option value="align">align</option>
-                <option value="gather">gather</option>
-                <option value="multline">multline</option>
-                <option value="eqnarray">eqnarray</option>
-              </select>
-            </label>
-            <label className="checkbox">
-              <input type="checkbox" checked={numbered} onChange={(event) => updateAttributes({ latex: draft, numbered: event.currentTarget.checked })} />
-              {t("Nummeriert")}
-            </label>
-            {numbered && (
+        <EditPanel className="math-panel">
+          <MathEditPanel
+            latex={latex}
+            display
+            initialMode={defaultMathMode(environment, latex)}
+            preview={(value) => renderKatex(value, true, environment)}
+            onCommit={(value) => commitMath(value, updateAttributes, deleteNode)}
+            onLeave={() => leaveMath(editor, getPos, node.nodeSize)}
+          >
+            <div className="node-edit-row">
               <label>
-                {t("Label")}
-                <input
-                  value={label}
-                  placeholder="eq:name"
-                  onChange={(event) => labelPattern.test(event.currentTarget.value) && updateAttributes({ label: event.currentTarget.value })}
-                />
+                {t("Umgebung")}
+                <select value={environment} onChange={(event) => updateAttributes({ environment: event.currentTarget.value })}>
+                  <option value="equation">equation</option>
+                  <option value="align">align</option>
+                  <option value="gather">gather</option>
+                  <option value="multline">multline</option>
+                  <option value="eqnarray">eqnarray</option>
+                </select>
               </label>
-            )}
-          </div>
+              <label className="checkbox">
+                <input type="checkbox" checked={numbered} onChange={(event) => updateAttributes({ numbered: event.currentTarget.checked })} />
+                {t("Nummeriert")}
+              </label>
+              {numbered && (
+                <label>
+                  {t("Label")}
+                  <input
+                    value={label}
+                    placeholder="eq:name"
+                    onChange={(event) => labelPattern.test(event.currentTarget.value) && updateAttributes({ label: event.currentTarget.value })}
+                  />
+                </label>
+              )}
+            </div>
+          </MathEditPanel>
         </EditPanel>
       )}
     </NodeViewWrapper>
   );
 }
 
-export function InlineMathView({ node, updateAttributes, selected }: ReactNodeViewProps) {
-  const t = useT();
+export function InlineMathView({ node, updateAttributes, selected, deleteNode, editor, getPos }: ReactNodeViewProps) {
   const latex = String(node.attrs.latex ?? "");
-  const [draft, setDraft] = useState(latex);
-  useEffect(() => setDraft(latex), [latex]);
-  const html = useMemo(() => renderKatex(selected ? draft : latex, false), [draft, latex, selected]);
+  const html = useMemo(() => renderKatex(latex, false), [latex]);
   return (
     <NodeViewWrapper as="span" className={`inline-math${selected ? " is-selected" : ""}`}>
       <span dangerouslySetInnerHTML={{ __html: html }} />
       {selected && (
-        <span className="inline-math-editor" contentEditable={false} onMouseDown={stop} onKeyDown={stop}>
-          <input
-            value={draft}
-            spellCheck={false}
-            autoFocus
-            aria-label={t("LaTeX-Formel")}
-            onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={() => draft !== latex && updateAttributes({ latex: draft })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") updateAttributes({ latex: draft });
-            }}
+        <span className="inline-math-editor" contentEditable={false} onMouseDown={stop} onKeyDown={stop} onPaste={stop} onCopy={stop} onCut={stop}>
+          <MathEditPanel
+            latex={latex}
+            display={false}
+            initialMode={defaultMathMode("", latex)}
+            preview={(value) => renderKatex(value, false)}
+            onCommit={(value) => commitMath(value, updateAttributes, deleteNode)}
+            onLeave={() => leaveMath(editor, getPos, node.nodeSize)}
           />
         </span>
       )}

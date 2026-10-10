@@ -16,6 +16,7 @@ pub mod pdf;
 pub mod prepare;
 pub mod preview;
 pub mod setup;
+pub mod share;
 pub mod system;
 pub mod templates;
 pub mod texbundle;
@@ -455,6 +456,12 @@ async fn setup_uninstall(app: AppHandle) -> Result<(), String> {
         handle.exit(0);
     });
     Ok(())
+}
+
+/// Gespeicherte Datei teilen (Windows: Teilen-Fenster, Linux: E-Mail mit Anhang).
+#[tauri::command]
+async fn share_file(window: tauri::WebviewWindow, path: String) -> Result<String, String> {
+    blocking(move || share::share(&window, std::path::Path::new(&path))).await
 }
 
 #[tauri::command]
@@ -1373,6 +1380,7 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             setup_uninstall,
             update_check,
             update_install,
+            share_file,
             analyze_document,
             check_resources,
             compile_document,

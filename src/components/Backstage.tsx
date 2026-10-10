@@ -26,6 +26,7 @@ import { useT } from "../i18n";
 import type { UiLanguage } from "../i18n";
 import { UI_LANGUAGES } from "../i18n";
 import { AddonManager } from "./AddonManager";
+import { QuickAccessPanel } from "./QuickAccess";
 import { ShortcutsPanel } from "../shortcuts/ShortcutsPanel";
 import type { ShortcutOverrides } from "../shortcuts/shortcuts";
 import type { SlideDeck } from "../slides/model";
@@ -48,6 +49,8 @@ export type AppPrefs = {
   checkUpdates: boolean;
   /** Übersprungene Version (kein Hinweis mehr beim Start). */
   skipUpdate: string;
+  /** Symbolleiste für den Schnellzugriff (Befehls-IDs, siehe shortcuts/quickAccess.ts) */
+  quickAccess: string[];
 };
 
 export type RecentFile = { path: string; name: string; openedAt: number };
@@ -396,6 +399,10 @@ export function Backstage(props: Props) {
                 <input type="checkbox" checked={prefs.allowOnline} onChange={(event) => setPref({ allowOnline: event.currentTarget.checked })} />
                 {t("Fehlende TeX-Pakete online nachladen (sonst nur mitgeliefertes Bundle, vollständig offline)")}
               </label>
+              <div className="form-field span-2" id="optionen-schnellzugriff">
+                <span>{t("Symbolleiste für den Schnellzugriff")}</span>
+                <QuickAccessPanel items={prefs.quickAccess} onChange={(quickAccess) => setPref({ quickAccess })} />
+              </div>
               <div className="form-field span-2">
                 <span>{t("Speicherort für nachgeladene TeX-Pakete")}</span>
                 <span className="path-field">

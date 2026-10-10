@@ -12,7 +12,7 @@ import type { JSONContent } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Braces, Eye, PanelRight, Play, Presentation, Redo2, Save, Undo2 } from "lucide-react";
+import { Braces, Eye, PanelRight, Play, Presentation } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./App.css";
 import { api, errorText, isTauri } from "./api";
@@ -52,6 +52,11 @@ import { SketchPad } from "./sketch/SketchPad";
 import type { Sketch } from "./sketch/SketchPad";
 import { SystemCheckDialog } from "./components/SystemCheckDialog";
 import { SetupScreen, UpdateDialog } from "./components/SetupScreen";
+import { QuickAccessBar } from "./components/QuickAccess";
+import { setPendingMath } from "./math/mathBridge";
+import { ShareDialog, TitleContextMenu } from "./components/ShareDialog";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
+import { DEFAULT_QUICK_ACCESS, normalizeQuickAccess } from "./shortcuts/quickAccess";
 import { completionData } from "./monaco/completionData";
 import { newSlidesSession, normalizeDeck } from "./slides/model";
 import type { SlideFileActions, SlidesSession } from "./slides/model";
@@ -77,6 +82,7 @@ const defaultPrefs: AppPrefs = {
   shortcuts: {},
   checkUpdates: true,
   skipUpdate: "",
+  quickAccess: [...DEFAULT_QUICK_ACCESS],
 };
 
 function loadPrefs(): AppPrefs {
@@ -88,6 +94,7 @@ function loadPrefs(): AppPrefs {
       ...(legacyLanguage === "en" ? { language: "en" } : {}),
       ...(localStorage.getItem("visutex-accent-color") ? { accent: localStorage.getItem("visutex-accent-color") as string } : {}),
       ...stored,
+      quickAccess: normalizeQuickAccess(stored.quickAccess ?? DEFAULT_QUICK_ACCESS),
     };
   } catch {
     return defaultPrefs;
@@ -212,6 +219,9 @@ function Workspace() {
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
   const [setupView, setSetupView] = useState<"setup" | "uninstall" | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  // Teilen: Dialog und Kontextmenü der Titelleiste
+  const [shareOpen, setShareOpen] = useState(false);
+  const [titleMenu, setTitleMenu] = useState<{ x: number; y: number } | null>(null);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
   const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle" });
   const [codeMessages, setCodeMessages] = useState<TexMessage[]>([]);
@@ -1605,12 +1615,22 @@ function Workspace() {
     },
     insertTikz: (environment) =>
       editor?.chain().focus().insertContent({ type: "tikzBlock", attrs: { code: TIKZ_TEMPLATES[environment], environment } }).run(),
-    insertMath: (inline) => {
+    insertMath: (inline, template) => {
       if (!editor) return;
       const { from, to, empty } = editor.state.selection;
       const selected = empty ? "" : editor.state.doc.textBetween(from, to, " ");
-      if (inline) editor.chain().focus().insertContent({ type: "inlineMath", attrs: { latex: selected || "a^2 + b^2 = c^2" } }).run();
-      else editor.chain().focus().insertContent({ type: "mathBlock", attrs: { latex: selected || "E = m c^2", numbered: true } }).run();
+      const type = inline ? "inlineMath" : "mathBlock";
+      // Wie in Word: neue Formel leer (bzw. markierter Text) und sofort zum Bearbeiten geöffnet;
+      // eine Vorlage („Häufige Formeln“, Strukturen) fügt das Formelfeld beim Öffnen ein.
+      setPendingMath(template ?? null);
+      editor.chain().focus().insertContent({ type, attrs: inline ? { latex: selected } : { latex: selected, numbered: true } }).run();
+      const doc = editor.state.doc;
+      let found = -1;
+      doc.nodesBetween(Math.max(0, from - 1), Math.min(doc.content.size, from + 4), (node, pos) => {
+        if (found < 0 && node.type.name === type && String(node.attrs.latex ?? "") === selected) found = pos;
+        return found < 0;
+      });
+      if (found >= 0) editor.chain().setNodeSelection(found).run();
     },
     insertLink: async () => {
       if (!editor) return;
@@ -1900,6 +1920,7 @@ function Workspace() {
       case "file.open": void openDocument(); return true;
       case "file.save": void saveRef.current(); return true;
       case "file.saveAs": void saveAs(); return true;
+      case "file.share": setShareOpen(true); return true;
       case "file.exportTex": void exportTex(); return true;
       case "file.exportPdf": void exportPdf(); return true;
       case "file.compile": actions.compile(); return true;
@@ -1974,7 +1995,8 @@ function Workspace() {
       if (!combo) return;
       const target = event.target instanceof Element ? event.target : null;
       const inMainEditor = Boolean(target && editor && editor.view.dom.contains(target));
-      const inField = Boolean(target?.closest("input, textarea, select, .monaco-editor"));
+      // Formelfelder (MathLive) haben eigene Tasten (Strg+Z, Pfeile …)
+      const inField = Boolean(target?.closest("input, textarea, select, .monaco-editor, math-field"));
       const editorContext = !inField && (inMainEditor || !target || target === document.body || Boolean(target.closest(".ribbon, .statusbar")));
       const id = bindings.get(combo);
       if (id && (scopes.get(id) === "global" || editorContext)) {
@@ -2048,17 +2070,25 @@ function Workspace() {
 
   return (
     <div className={`app${theme === "dark" ? " theme-dark" : ""}`}>
-      <header className="titlebar">
+      <header
+        className="titlebar"
+        onContextMenu={(event) => {
+          // Rechtsklick auf die Titelleiste (nicht in Eingabefeldern): Teilen und Dateiaktionen
+          if ((event.target as HTMLElement).closest("input, textarea, select")) return;
+          event.preventDefault();
+          setTitleMenu({ x: event.clientX, y: event.clientY });
+        }}
+      >
         <div className="titlebar-actions">
-          <button type="button" className="icon-button" title={t("Speichern (Strg+S)")} onClick={() => void saveRef.current()}>
-            <Save size={17} />
-          </button>
-          <button type="button" className="icon-button" title={t("Rückgängig (Strg+Z)")} disabled={mode !== "visual"} onClick={() => editor?.chain().focus().undo().run()}>
-            <Undo2 size={17} />
-          </button>
-          <button type="button" className="icon-button" title={t("Wiederholen (Strg+Y)")} disabled={mode !== "visual"} onClick={() => editor?.chain().focus().redo().run()}>
-            <Redo2 size={17} />
-          </button>
+          <QuickAccessBar
+            items={prefs.quickAccess}
+            shortcuts={prefs.shortcuts}
+            language={prefs.language}
+            isDisabled={(id) => SHORTCUT_COMMANDS.find((command) => command.id === id)?.scope === "editor" && mode !== "visual"}
+            onRun={(id) => void runShortcut(id)}
+            onChange={(quickAccess) => setPrefs((current) => ({ ...current, quickAccess }))}
+            onMoreOptions={() => setBackstage("options")}
+          />
         </div>
         <div className="titlebar-name">
           <strong>{docState?.name ?? "VisuTeX"}</strong>
@@ -2271,6 +2301,35 @@ function Workspace() {
             setSetupView(null);
             void refreshSetup().catch(() => undefined);
           }}
+        />
+      )}
+      {titleMenu && (
+        <TitleContextMenu
+          x={titleMenu.x}
+          y={titleMenu.y}
+          hasFile={Boolean(docState?.path && !docState.temporary)}
+          onShare={() => setShareOpen(true)}
+          onReveal={() => docState?.path && void revealItemInDir(docState.path)}
+          onCopyPath={() => {
+            if (!docState?.path) return;
+            void navigator.clipboard.writeText(docState.path).then(() => notify(t("Dateipfad kopiert.")));
+          }}
+          onClose={() => setTitleMenu(null)}
+        />
+      )}
+      {shareOpen && (
+        <ShareDialog
+          target={{
+            path: docState?.path && !docState.temporary ? docState.path : null,
+            name: docState?.name ?? "VisuTeX",
+            savedAt: docState?.stamp?.modifiedMs ?? null,
+            dirty,
+            latexProject: docState?.kind === "tex",
+          }}
+          locale={languageInfo(prefs.language).locale}
+          onSave={() => saveRef.current()}
+          onShared={(message) => notify(message)}
+          onClose={() => setShareOpen(false)}
         />
       )}
       {updateInfo && (
