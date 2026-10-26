@@ -80,7 +80,8 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   umgeschrieben, wenn man sie tatsächlich ändert; eine geleerte Formel wird entfernt. Esc kehrt in den Text zurück.
 - **Markieren und löschen (wie in Word):** Was mit der Maus (Ziehen, Umschalt+Klick) oder der Tastatur (Umschalt+Pfeile,
   Strg+A) markiert ist, löschen `Entf`/`Rücktaste` vollständig – Text, Tabellen, Bilder, Zeichnungen (TikZ), Formeln,
-  LaTeX-Blöcke, Verzeichnisse, Umbrüche, Kommentare usw. Innerhalb einer Markierung öffnet sich kein Bearbeitungsfeld.
+  LaTeX-Blöcke, Verzeichnisse, Umbrüche, Kommentare usw. Alles Markierte erscheint – wie Text – blau hinterlegt, auch
+  Skizzen, Bilder, Formeln und ganze Tabellen bzw. Boxen. Innerhalb einer Markierung öffnet sich kein Bearbeitungsfeld.
   Ein **einzelner Block** wird per Klick ausgewählt; `Entf`/`Rücktaste` löschen ihn, ebenso der Knopf *Löschen* im
   Bearbeitungsfeld (Zeichnung, Formel). Bearbeiten: Doppelklick, `Eingabetaste`/`F2` oder einfach lostippen (bei
   Zeichnungen landet der Text im Code); `Esc` kehrt zum ausgewählten Block zurück. Formeln öffnen per Klick sofort den

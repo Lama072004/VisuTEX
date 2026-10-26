@@ -55,6 +55,7 @@ import {
 } from "./nodeViews";
 import { Pagination } from "./pagination";
 import { FormattingMarks } from "./formattingMarks";
+import { SelectionHighlight } from "./selectionHighlight";
 import { CommentLayout } from "./commentLayout";
 import { LayoutParagraphs } from "./layoutParagraphs";
 import { SearchReplace } from "./search";
@@ -146,6 +147,7 @@ export function appExtensions(): AnyExtension[] {
     CommentLayout,
     LayoutParagraphs,
     ObjectEditKeys,
+    SelectionHighlight,
     ExtraKeys,
   ];
 }

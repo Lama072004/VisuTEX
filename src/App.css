@@ -1572,6 +1572,51 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* Markierung wie bei Text – Text und Blöcke (Skizzen, Bilder, Formeln …) in derselben Farbe */
+.document-body {
+  --doc-selection: rgba(37, 99, 235, 0.3);
+}
+.document-body ::selection {
+  background: var(--doc-selection);
+}
+.document-body .vtx-in-selection {
+  position: relative;
+}
+.document-body .vtx-in-selection::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--doc-selection);
+  pointer-events: none;
+  z-index: 2;
+}
+.document-body .vtx-in-selection.is-selected {
+  outline: none;
+}
+/* Randkommentare und Layout-Markierungen nehmen im Text keinen Platz ein: die Sprechblase einfärben */
+.document-body .latex-comment-anchor.vtx-in-selection::after,
+.document-body .latex-layout-anchor.vtx-in-selection::after {
+  content: none;
+}
+.document-body .vtx-in-selection > .latex-comment-balloon,
+.document-body .vtx-in-selection > .latex-layout-marker {
+  box-shadow: inset 0 0 0 999px var(--doc-selection);
+}
+/* Vollständig markierte Tabellen und Umgebungen als Ganzes – der Text darin ohne zweite (dunklere) Markierung */
+.document-body .vtx-whole ::selection {
+  background: transparent;
+}
+.document-body .tableWrapper.vtx-in-selection::after {
+  content: none;
+}
+.document-body .tableWrapper.vtx-in-selection td,
+.document-body .tableWrapper.vtx-in-selection th {
+  background-image: linear-gradient(var(--doc-selection), var(--doc-selection));
+}
+.document-body .tableWrapper.vtx-in-selection + .table-caption,
+.document-body .table-caption.is-above:has(+ .tableWrapper.vtx-in-selection) {
+  background: var(--doc-selection);
+}
 .document-body .search-match {
   background: #fff176;
   border-radius: 2px;
