@@ -181,6 +181,11 @@ export function UpdateDialog({ info, onSkip, onClose }: UpdateProps) {
         </p>
         {info.notes && <pre className="update-notes">{info.notes}</pre>}
         {!info.asset && <p className="muted">{t("Für diese Installation gibt es keine automatische Aktualisierung – bitte die neue Version von der Release-Seite laden.")}</p>}
+        {info.asset?.name.toLowerCase().endsWith(".msi") && (
+          <p className="muted">
+            {t("VisuTeX wird dafür beendet. Windows fragt nach Administratorrechten, das Installationsprogramm aktualisiert die Installation im bisherigen Ordner, danach startet VisuTeX neu.")}
+          </p>
+        )}
         {progress && (
           <div className="update-progress" aria-label={t("Fortschritt")}>
             <div style={{ width: `${percent}%` }} />

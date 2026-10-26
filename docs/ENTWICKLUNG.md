@@ -129,7 +129,10 @@ Lokal: `npm run portable:zip` erzeugt `VisuTeX_<Version>_x64-portable.zip` neben
   `VisuTeX_<Version>_windows_x64.exe` (`portable.mjs --exe`), sonst die portable ZIP; Setup.exe-Installation →
   neue `…-setup.exe`, läuft nach dem Beenden still (`/S /UPDATE`; nicht `/P` – dabei
   erscheint die Sprachauswahl und das Update bliebe stehen) und startet VisuTeX neu; AppImage → AppImage;
-  MSI und deb/rpm → nur Hinweis mit Release-Seite. Nach einem Update zieht der Start die Version unter „Apps“ nach. Nur Adressen von `github.com` werden angenommen; die
+  MSI → neues `….msi`, nach dem Beenden `msiexec /i … /passive /norestart /l*v update-msi.log` über
+  `Start-Process -Verb RunAs` (UAC-Abfrage; Tauris MSI erlaubt Upgrades gleicher Version und merkt sich den Ordner in
+  `HKCU\Software\<Hersteller>\VisuTeX\InstallDir`), danach Neustart ohne Adminrechte; deb/rpm → nur Hinweis mit
+  Release-Seite. Nach einem Update zieht der Start die Version unter „Apps“ nach. Nur Adressen von `github.com` werden angenommen; die
   SHA-256-Prüfsumme, die GitHub je Release-Datei angibt (`digest`), wird nach dem Download geprüft.
 - Einrichtungszustand: `<App-Daten>/einrichtung.json` (`%APPDATA%\com.mathias-lampert.visutex`). Löschen → der
   Einrichtungsbildschirm erscheint wieder. In Debug-Builds nur mit `VISUTEX_SETUP=1` (die Update-Suche beim Start ist im

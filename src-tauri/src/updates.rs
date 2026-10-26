@@ -1,10 +1,15 @@
 //! Update-Suche über die GitHub-Releases (auch Vorabversionen wie `v0.2.0-alpha.2`).
 //!
 //! Gesucht wird die höchste Version (semantisch verglichen, `alpha < beta < rc < final`).
-//! Installiert wird die passende Datei des Releases: Windows `…_windows_x64.exe`
-//! (ersatzweise die portable ZIP), Linux die `.AppImage` – die laufende EXE wird ersetzt
-//! (Windows: alte Datei beiseitelegen) und die App neu gestartet. Ohne passende Datei
-//! (z. B. per Paketverwalter installiert) gibt es nur den Link zur Release-Seite.
+//! Installiert wird die zur Installationsart passende Datei des Releases:
+//! - einzelne EXE bzw. eigene Einrichtung: Windows `…_windows_x64.exe` (ersatzweise die
+//!   portable ZIP), Linux die `.AppImage` – die laufende EXE wird ersetzt (Windows: alte
+//!   Datei beiseitelegen) und die App neu gestartet;
+//! - Setup.exe (NSIS): neue Setup.exe still mit `/UPDATE`;
+//! - MSI: neues MSI mit `msiexec /passive` – Windows fragt per UAC nach Administratorrechten,
+//!   das MSI ersetzt die Installation im gemerkten Ordner (gleiche Version erlaubt).
+//!
+//! Nur deb/rpm (Paketverwaltung) bekommen den Link zur Release-Seite.
 
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
@@ -160,9 +165,11 @@ fn pick_asset(assets: &[serde_json::Value], kind: &str) -> Option<UpdateAsset> {
     match kind {
         // Über Setup.exe installiert: neue Setup.exe still ausführen (Eintrag unter „Apps“ stimmt)
         "nsis" => find(&|name| name.ends_with("-setup.exe")),
+        // MSI: neues MSI installieren (Administratorrechte über die UAC-Abfrage von Windows)
+        "msi" => find(&|name| name.ends_with(".msi")),
         "appimage" => find(&|name| name.ends_with(".appimage")),
-        // MSI (Administratorrechte) und deb/rpm (Paketverwaltung): nur Hinweis + Release-Seite
-        "msi" | "package" => None,
+        // deb/rpm (Paketverwaltung): nur Hinweis + Release-Seite
+        "package" => None,
         _ if cfg!(windows) => find(&|name| name.ends_with("_windows_x64.exe"))
             .or_else(|| find(&|name| name.ends_with("-portable.zip"))),
         _ => None,
@@ -266,8 +273,8 @@ pub fn check() -> Result<UpdateInfo, String> {
 }
 
 /// Lädt die neue Version herunter, ersetzt die laufende Programmdatei und liefert ihren Pfad
-/// (zum Neustart). Bei einer Setup.exe (über das Installationsprogramm installiert) läuft
-/// diese nach dem Beenden still und startet VisuTeX neu – dann `None`.
+/// (zum Neustart). Bei einer Setup.exe bzw. einem MSI (über das Installationsprogramm
+/// installiert) läuft dieses nach dem Beenden und startet VisuTeX neu – dann `None`.
 /// `progress(geladen, gesamt)` wird während des Downloads aufgerufen.
 pub fn install(
     asset: &UpdateAsset,
@@ -316,11 +323,16 @@ pub fn install(
             "Prüfsumme der heruntergeladenen Datei stimmt nicht – Update abgebrochen.".into(),
         );
     }
-    if asset.name.to_lowercase().ends_with("-setup.exe") {
-        let setup = work_dir.join("VisuTeX-Setup.exe");
-        let _ = std::fs::remove_file(&setup);
-        std::fs::rename(&download, &setup).map_err(|error| error.to_string())?;
-        run_setup_after_exit(&setup, &exe)?;
+    let lower = asset.name.to_lowercase();
+    if lower.ends_with("-setup.exe") || lower.ends_with(".msi") {
+        let installer = work_dir.join(if lower.ends_with(".msi") {
+            "VisuTeX-Update.msi"
+        } else {
+            "VisuTeX-Setup.exe"
+        });
+        let _ = std::fs::remove_file(&installer);
+        crate::files::replace_with(&download, &installer).map_err(|error| error.to_string())?;
+        run_installer_after_exit(&installer, &exe)?;
         return Ok(None);
     }
     // ZIP (portable Version): Programmdatei herausholen
@@ -340,26 +352,53 @@ pub fn install(
     Ok(Some(exe))
 }
 
-/// Setup.exe nach dem Beenden still ausführen (`/S`; `/UPDATE`: bestehende Installation
-/// aktualisieren) und VisuTeX danach neu starten, sofern das Installationsprogramm es nicht
-/// schon selbst gestartet hat. Nicht `/P` (passiv): dabei zeigt der Installer trotzdem die
-/// Sprachauswahl (`displayLanguageSelector`) und das Update bliebe dort stehen – im echten
-/// Durchlauf so beobachtet. Still behält er die bei der Installation gewählte Sprache.
-#[cfg(windows)]
-fn run_setup_after_exit(setup: &Path, exe: &Path) -> Result<(), String> {
-    use std::os::windows::process::CommandExt;
+/// PowerShell-Skript, das nach dem Beenden von VisuTeX das Installationsprogramm ausführt und
+/// VisuTeX danach neu startet, sofern es nicht schon läuft.
+///
+/// - Setup.exe: still (`/S`; `/UPDATE`: bestehende Installation aktualisieren). Nicht `/P`
+///   (passiv): dabei zeigt der Installer trotzdem die Sprachauswahl (`displayLanguageSelector`)
+///   und das Update bliebe dort stehen – im echten Durchlauf so beobachtet.
+/// - MSI: `msiexec /i … /passive` (nur Fortschrittsbalken) mit `-Verb RunAs`, damit Windows
+///   die UAC-Abfrage sofort zeigt; Protokoll `update-msi.log` daneben. Lehnt der Nutzer die
+///   Abfrage ab, startet die bisherige Version wieder. Der Neustart läuft ohne Adminrechte.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn installer_script(installer: &Path, exe: &Path) -> String {
     let quote = |path: &Path| format!("'{}'", path.display().to_string().replace('\'', "''"));
     let process = exe
         .file_stem()
         .map(|stem| stem.to_string_lossy().replace('\'', "''"))
         .unwrap_or_else(|| "visutex".into());
-    let script = format!(
-        "Start-Sleep -Seconds 2; Start-Process -FilePath {} -ArgumentList '/S','/UPDATE' -Wait; \
-         Start-Sleep -Seconds 1; \
+    let run = if installer
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("msi"))
+    {
+        let log = installer.with_file_name("update-msi.log");
+        let arguments = format!(
+            "/i \"{}\" /passive /norestart /l*v \"{}\"",
+            installer.display(),
+            log.display()
+        )
+        .replace('\'', "''");
+        format!(
+            "try {{ Start-Process -FilePath 'msiexec.exe' -ArgumentList '{arguments}' -Verb RunAs -Wait }} catch {{ }}"
+        )
+    } else {
+        format!(
+            "Start-Process -FilePath {} -ArgumentList '/S','/UPDATE' -Wait",
+            quote(installer)
+        )
+    };
+    format!(
+        "Start-Sleep -Seconds 2; {run}; Start-Sleep -Seconds 1; \
          if (-not (Get-Process -Name '{process}' -ErrorAction SilentlyContinue)) {{ Start-Process -FilePath {} }}",
-        quote(setup),
         quote(exe)
-    );
+    )
+}
+
+#[cfg(windows)]
+fn run_installer_after_exit(installer: &Path, exe: &Path) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let script = installer_script(installer, exe);
     std::process::Command::new("powershell")
         .args([
             "-NoProfile",
@@ -376,8 +415,8 @@ fn run_setup_after_exit(setup: &Path, exe: &Path) -> Result<(), String> {
 }
 
 #[cfg(not(windows))]
-fn run_setup_after_exit(_setup: &Path, _exe: &Path) -> Result<(), String> {
-    Err("Setup.exe gibt es nur unter Windows.".into())
+fn run_installer_after_exit(_installer: &Path, _exe: &Path) -> Result<(), String> {
+    Err("Setup.exe und MSI gibt es nur unter Windows.".into())
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -435,7 +474,9 @@ mod tests {
                 {"name": "VisuTeX_0.2.0_x64-setup.exe", "browser_download_url": "https://github.com/a", "size": 1},
                 {"name": "VisuTeX_0.2.0_windows_x64.exe", "browser_download_url": "https://github.com/b", "size": 2},
                 {"name": "VisuTeX_0.2.0_x64-portable.zip", "browser_download_url": "https://github.com/c", "size": 3},
-                {"name": "VisuTeX_0.2.0_amd64.AppImage", "browser_download_url": "https://github.com/d", "size": 4}
+                {"name": "VisuTeX_0.2.0_amd64.AppImage", "browser_download_url": "https://github.com/d", "size": 4},
+                {"name": "VisuTeX_0.2.0_x64_en-US.msi", "browser_download_url": "https://github.com/e", "size": 5},
+                {"name": "VisuTeX_0.2.0_amd64.deb", "browser_download_url": "https://github.com/f", "size": 6}
             ]"#,
         )
         .unwrap();
@@ -451,8 +492,48 @@ mod tests {
             pick_asset(&assets, "appimage").unwrap().name,
             "VisuTeX_0.2.0_amd64.AppImage"
         );
-        assert!(pick_asset(&assets, "msi").is_none());
+        assert_eq!(
+            pick_asset(&assets, "msi").unwrap().name,
+            "VisuTeX_0.2.0_x64_en-US.msi"
+        );
         assert!(pick_asset(&assets, "package").is_none());
+    }
+
+    #[test]
+    fn installer_scripts_update_and_restart() {
+        let exe = Path::new(r"D:\Program Files\VisuTEX\visutex.exe");
+        let msi = installer_script(
+            Path::new(r"C:\Users\O'Brien\AppData\Local\update\VisuTeX-Update.msi"),
+            exe,
+        );
+        assert!(msi.contains("'msiexec.exe'"));
+        assert!(msi.contains("/passive /norestart"));
+        assert!(msi.contains("-Verb RunAs -Wait"));
+        // Pfad mit Leerzeichen bzw. Apostroph korrekt eingebettet
+        assert!(msi.contains(r#"/i "C:\Users\O''Brien\AppData\Local\update\VisuTeX-Update.msi""#));
+        assert!(msi.contains("Start-Process -FilePath 'D:\\Program Files\\VisuTEX\\visutex.exe'"));
+        let setup = installer_script(Path::new(r"C:\temp\VisuTeX-Setup.exe"), exe);
+        assert!(setup.contains("'/S','/UPDATE'"));
+        assert!(!setup.contains("RunAs"));
+        // Beide Skripte sind gültiges PowerShell
+        #[cfg(windows)]
+        for script in [msi, setup] {
+            let output = std::process::Command::new("powershell")
+                .args([
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    "$errors = $null; [System.Management.Automation.Language.Parser]::ParseInput($env:VISUTEX_SKRIPT, [ref]$null, [ref]$errors) | Out-Null; $errors.Count",
+                ])
+                .env("VISUTEX_SKRIPT", &script)
+                .output()
+                .unwrap();
+            assert_eq!(
+                String::from_utf8_lossy(&output.stdout).trim(),
+                "0",
+                "{script}"
+            );
+        }
     }
 
     #[test]

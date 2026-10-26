@@ -754,6 +754,7 @@
   "VisuTeX bringt TeX-Engine, TeX-Pakete und Schriften mit. Hier siehst du, was auf diesem System gefunden wurde und was fehlt.": "O VisuTeX inclui o motor TeX, os pacotes TeX e os tipos de letra. Aqui vê o que foi encontrado neste sistema e o que falta.",
   "VisuTeX und LaTeX": "VisuTeX e LaTeX",
   "VisuTeX verwendet BibTeX mit natbib (in der eingebauten Engine enthalten). Einträge können aus Zotero übernommen werden (Referenzen → Zitat einfügen).": "O VisuTeX usa BibTeX com natbib (incluído no motor integrado). As entradas podem ser importadas do Zotero (Referências → Inserir citação).",
+  "VisuTeX wird dafür beendet. Windows fragt nach Administratorrechten, das Installationsprogramm aktualisiert die Installation im bisherigen Ordner, danach startet VisuTeX neu.": "O VisuTeX será fechado. O Windows pede direitos de administrador, o instalador atualiza a instalação na pasta atual e depois o VisuTeX reinicia.",
   "VisuTeX-Add-on": "Suplemento VisuTeX",
   "VisuTeX-Präsentation": "Apresentação VisuTeX",
   "VisuTeX-Projekt": "Projeto VisuTeX",

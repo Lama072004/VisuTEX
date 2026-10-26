@@ -24,8 +24,10 @@ VisuTeX bei GitHub nach einer neueren Version (auch Vorabversionen). Der Dialog 
 *Jetzt aktualisieren* lädt die neue Programmdatei, ersetzt die laufende und startet neu. *Diese Version überspringen*
 unterdrückt den Hinweis bis zur nächsten Version. Ohne Internet passiert nichts. Vor dem Ersetzen wird die Prüfsumme
 (SHA-256) der Datei kontrolliert. Wurde mit der Setup.exe installiert, lädt VisuTeX die neue Setup.exe und führt sie
-ohne Rückfragen aus (die Version unter „Apps“ stimmt danach). Bei MSI, `.deb` und `.rpm` öffnet *Release-Seite* die
-Download-Seite (Aktualisierung über das Installationsprogramm bzw. die Paketverwaltung).
+ohne Rückfragen aus (die Version unter „Apps“ stimmt danach). Wurde mit dem **MSI** installiert, lädt VisuTeX das neue
+MSI; nach dem Beenden fragt Windows einmal nach Administratorrechten, das Installationsprogramm ersetzt die Installation
+im bisherigen Ordner (mit Fortschrittsbalken) und VisuTeX startet neu. Bei `.deb` und `.rpm` öffnet *Release-Seite*
+die Download-Seite (Aktualisierung über die Paketverwaltung).
 
 ## Überblick
 

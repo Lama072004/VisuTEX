@@ -754,6 +754,7 @@
   "VisuTeX bringt TeX-Engine, TeX-Pakete und Schriften mit. Hier siehst du, was auf diesem System gefunden wurde und was fehlt.": "VisuTeX levert de TeX-engine, TeX-pakketten en lettertypen mee. Hier ziet u wat op dit systeem is gevonden en wat ontbreekt.",
   "VisuTeX und LaTeX": "VisuTeX en LaTeX",
   "VisuTeX verwendet BibTeX mit natbib (in der eingebauten Engine enthalten). Einträge können aus Zotero übernommen werden (Referenzen → Zitat einfügen).": "VisuTeX gebruikt BibTeX met natbib (in de ingebouwde engine aanwezig). Items kunnen uit Zotero worden overgenomen (Verwijzingen → Citaat invoegen).",
+  "VisuTeX wird dafür beendet. Windows fragt nach Administratorrechten, das Installationsprogramm aktualisiert die Installation im bisherigen Ordner, danach startet VisuTeX neu.": "VisuTeX wordt hiervoor gesloten. Windows vraagt om beheerdersrechten, het installatieprogramma werkt de installatie in de huidige map bij en daarna start VisuTeX opnieuw.",
   "VisuTeX-Add-on": "VisuTeX-add-on",
   "VisuTeX-Präsentation": "VisuTeX-presentatie",
   "VisuTeX-Projekt": "VisuTeX-project",
