@@ -170,5 +170,19 @@ Kombination drücken. Konflikte werden angezeigt, jeder Befehl lässt sich auf d
 
 ## Add-ons
 
-*Datei → Add-ons*: Add-ons (ZIP oder Ordner) bringen Präambelzeilen, TeX-Dateien, Bausteine im Menüband und Vorlagen mit –
-deklarativ, ohne ausführbaren Code. Eigene Add-ons lassen sich direkt in der App erstellen und exportieren.
+Add-ons funktionieren wie Add-ins bei Office: Ein Add-on ist eine Datei mit dem Dateityp **`.vtxaddon`**. Sie bringen
+Präambelzeilen, TeX-Dateien, Bausteine im Menüband und Vorlagen mit – deklarativ, ohne ausführbaren Code.
+
+- **Installieren:** Doppelklick auf die `.vtxaddon`-Datei, *Datei → Öffnen* oder *Datei → Add-ons → Aus Datei
+  installieren …* (auch `.zip`) bzw. *Aus Ordner installieren …*. Vorher zeigt eine **Sicherheitsabfrage**, was das
+  Add-on mitbringt (Schaltflächen, Vorlagen, TeX-Dateien, alle Präambelzeilen) und ob eine vorhandene Version ersetzt
+  wird.
+- **Verwenden:** Reiter **Add-ons** im Menüband oder *Einfügen → Meine Add-ons*; Vorlagen unter *Datei → Neu*.
+- **Verwalten** (*Datei → Add-ons*): ein-/ausschalten, bearbeiten, **als Add-on-Datei exportieren**, entfernen.
+  *Add-on-Ordner öffnen* und *Neu laden* helfen beim Entwickeln; fehlerhafte Add-ons stehen mit Ursache unter
+  „Wird nicht geladen“.
+- **Eigene Add-ons erstellen:** *Eigenes Add-on erstellen* (ohne Programmieren); Add-on und Menüband-Schaltflächen
+  erhalten auf Wunsch ein eigenes **SVG-Symbol** (*SVG wählen …*), das sich dem hellen bzw. dunklen Design anpasst.
+
+Die vollständige Anleitung für Add-on-Entwickler (Dateityp, `addon.json`, Symbole, TeX-Dateien, Beispiel,
+Fehlermeldungen) steht in [ADDONS.md](ADDONS.md).

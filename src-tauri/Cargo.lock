@@ -2450,6 +2450,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "885c5ef0654933139a9b9546fc2c69e18d37f38aa2520f079092b1be18f1fcaa"
 
 [[package]]
+name = "hayro-svg"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7434c89e920d84e077214a29e69b462a6518754610f732f1124af3948410cb8c"
+dependencies = [
+ "base64 0.22.1",
+ "hayro-interpret",
+ "image",
+ "kurbo 0.13.1",
+ "siphasher",
+ "xmlwriter",
+]
+
+[[package]]
 name = "hayro-syntax"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7089,6 +7103,7 @@ version = "0.2.1"
 dependencies = [
  "base64 0.23.1",
  "hayro",
+ "hayro-svg",
  "image",
  "reqwest",
  "serde",

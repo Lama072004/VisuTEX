@@ -55,6 +55,7 @@ import { SetupScreen, UpdateDialog } from "./components/SetupScreen";
 import { QuickAccessBar } from "./components/QuickAccess";
 import { setPendingMath } from "./math/mathBridge";
 import { ShareDialog, TitleContextMenu } from "./components/ShareDialog";
+import { AddonInstallDialog } from "./components/AddonInstallDialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_QUICK_ACCESS, normalizeQuickAccess } from "./shortcuts/quickAccess";
 import { completionData } from "./monaco/completionData";
@@ -221,6 +222,8 @@ function Workspace() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   // Teilen: Dialog und Kontextmenü der Titelleiste
   const [shareOpen, setShareOpen] = useState(false);
+  /** Add-on-Dateien, deren Installation angeboten wird (Doppelklick, Datei → Öffnen) */
+  const [addonQueue, setAddonQueue] = useState<string[]>([]);
   const [titleMenu, setTitleMenu] = useState<{ x: number; y: number } | null>(null);
   const [addons, setAddons] = useState<InstalledAddon[]>([]);
   const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle" });
@@ -426,6 +429,12 @@ function Workspace() {
   const reloadAddons = useCallback(() => {
     void api.addonsList().then(setAddons).catch(() => setAddons([]));
   }, []);
+  // Add-ons übernehmen, die inzwischen eine andere VisuTeX-Instanz installiert hat (Doppelklick)
+  useEffect(() => {
+    if (!isTauri) return;
+    window.addEventListener("focus", reloadAddons);
+    return () => window.removeEventListener("focus", reloadAddons);
+  }, [reloadAddons]);
   // TeX-Optionen (Online-Nachladen, Speicherort, eigenes Bundle) an Rust übergeben.
   const texOptions = useCallback(
     (next: AppPrefs) => ({ allowOnline: next.allowOnline, packageCacheDir: next.packageCacheDir || null, bundlePath: next.bundlePath || null }),
@@ -691,13 +700,19 @@ function Workspace() {
           title: t("Dokument öffnen"),
           multiple: false,
           filters: [
-            { name: t("VisuTeX, LaTeX und Präsentationen"), extensions: ["visutex", "json", "tex", "vtxslides"] },
+            { name: t("VisuTeX, LaTeX und Präsentationen"), extensions: ["visutex", "json", "tex", "vtxslides", "vtxaddon"] },
             { name: t("VisuTeX-Projekt"), extensions: ["visutex", "json"] },
             { name: "LaTeX", extensions: ["tex"] },
             { name: t("VisuTeX-Präsentation"), extensions: ["vtxslides"] },
+            { name: t("VisuTeX-Add-on"), extensions: ["vtxaddon"] },
           ],
         }));
       if (!selected || Array.isArray(selected)) return;
+      // Add-on-Dateien werden nicht geöffnet, sondern zur Installation angeboten (wie bei Office)
+      if (selected.toLowerCase().endsWith(".vtxaddon")) {
+        setAddonQueue((queue) => [...queue, selected]);
+        return;
+      }
       // Präsentationen öffnen im Folien-Editor; das Dokument bleibt geöffnet.
       if (selected.toLowerCase().endsWith(".vtxslides")) {
         await openPresentation(selected);
@@ -712,6 +727,24 @@ function Workspace() {
     },
     [applyOpened, confirmDiscard, dialogs, openPresentation, t],
   );
+
+  // Per Doppelklick übergebene Dateien (erst nach Einrichtung/Deinstallation): Add-ons zur
+  // Installation anbieten, ein Dokument öffnen
+  const startupFilesDone = useRef(false);
+  useEffect(() => {
+    if (!isTauri || !setupStatus || setupView || setupStatus.showSetup || setupStatus.uninstallRequested) return;
+    if (startupFilesDone.current) return;
+    startupFilesDone.current = true;
+    void api
+      .startupFiles()
+      .then((files) => {
+        const isAddon = (file: string) => file.toLowerCase().endsWith(".vtxaddon");
+        if (files.some(isAddon)) setAddonQueue((queue) => [...queue, ...files.filter(isAddon)]);
+        const document = files.find((file) => !isAddon(file));
+        if (document) void openDocument(document);
+      })
+      .catch(() => undefined);
+  }, [openDocument, setupStatus, setupView]);
 
   /** Aktuelles LaTeX (Code-Ansicht: Code; sonst exakter Quelltext oder Export). */
   const currentLatex = useCallback(async (): Promise<{ latex: string; assets: EmbeddedAsset[]; generatedPreamble: string }> => {
@@ -2330,6 +2363,21 @@ function Workspace() {
           onSave={() => saveRef.current()}
           onShared={(message) => notify(message)}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {addonQueue.length > 0 && (
+        <AddonInstallDialog
+          key={addonQueue[0]}
+          path={addonQueue[0]}
+          onClose={() => setAddonQueue((queue) => queue.slice(1))}
+          onInstalled={(manifest) => {
+            setAddonQueue((queue) => queue.slice(1));
+            reloadAddons();
+            notify(
+              `${t("Add-on installiert:")} ${manifest.name} ${manifest.version}` +
+                (manifest.ribbon.length ? ` – ${t("Schaltflächen im Menüband unter „Add-ons“.")}` : ""),
+            );
+          }}
         />
       )}
       {updateInfo && (

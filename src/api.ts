@@ -85,6 +85,7 @@ export type ZoteroItem = { id: string; source: "bbt" | "local"; title: string; a
 export type ImportedImage = { latexPath: string; convertedFrom: string | null; width: number | null; height: number | null };
 
 export type Snippet = { id: string; name: string; group: string; kind: "inline" | "block" | "math" | "inlineMath" | "tikz"; latex: string };
+/** `icon`: kurzer Text (≤ 4 Zeichen) oder Pfad zu einer SVG-Datei im Add-on (z. B. `icons/ohm.svg`) */
 export type RibbonEntry = { group: string; label: string; icon: string; snippet: string };
 export type AddonManifest = {
   id: string;
@@ -97,8 +98,30 @@ export type AddonManifest = {
   snippets: Snippet[];
   ribbon: RibbonEntry[];
   templates: Array<{ id: string; name: string; file: string }>;
+  /** Symbol des Add-ons (SVG-Datei im Add-on, optional) */
+  icon?: string;
 };
-export type InstalledAddon = { manifest: AddonManifest; enabled: boolean; builtin: boolean; path: string };
+export type InstalledAddon = {
+  manifest: AddonManifest;
+  enabled: boolean;
+  builtin: boolean;
+  path: string;
+  /** SVG-Symbole: Pfad im Add-on → data:-URL (geprüft) */
+  icons: Record<string, string>;
+};
+/** Inhalt eines Add-ons vor der Installation (Sicherheitsabfrage) */
+export type AddonPreview = {
+  manifest: AddonManifest;
+  icons: Record<string, string>;
+  fileCount: number;
+  size: number;
+  installedVersion: string | null;
+  installedBuiltin: boolean;
+  /** liegt schon im Add-on-Ordner (wird nur geprüft) */
+  inPlace: boolean;
+};
+/** Ordner im Add-on-Ordner, der nicht geladen werden kann */
+export type AddonProblem = { folder: string; error: string };
 export type TemplateInfo = { id: string; name: string; description: string; source: string };
 
 export type AppInfo = {
@@ -277,6 +300,12 @@ export const api = {
   addonsSave: (manifest: AddonManifest, newFiles: Array<{ source: string; target: string }>) =>
     call<AddonManifest>("addons_save", { manifest, newFiles }),
   addonsExport: (id: string, path: string) => call<void>("addons_export", { id, path }),
+  addonsIconPreview: (path: string) => call<string>("addons_icon_preview", { path }),
+  addonsInspect: (path: string) => call<AddonPreview>("addons_inspect", { path }),
+  addonsProblems: () => call<AddonProblem[]>("addons_problems"),
+  addonsOpenFolder: () => call<void>("addons_open_folder"),
+  /** Beim Start übergebene Dateien (Doppelklick auf .vtxaddon, .visutex …), einmalig */
+  startupFiles: () => call<string[]>("startup_files"),
   templatesList: () => call<TemplateInfo[]>("templates_list"),
 
   slidesToLatex: (deck: SlideDeck) => call<SlidesLatex>("slides_to_latex", { deck }),

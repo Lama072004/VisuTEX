@@ -60,6 +60,8 @@ tectonic_status_base = "0.2"
 tectonic_errors = "0.3"
 # PDF-Seiten in reinem Rust rendern (Vorschau ohne PDF-Viewer im WebView)
 hayro = "0.7"
+# Vorschauen als Vektorgrafik (SVG) – gleiche Interpreter-Version wie hayro
+hayro-svg = "0.7"
 # Bildkonvertierung beim Einfügen (GIF/WebP/BMP/TIFF → PNG)
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
 # SVG → PDF beim Einfügen von Vektorgrafiken

@@ -1497,7 +1497,17 @@ pub fn build_catalog(symbols_json: &str) -> Result<Catalog, String> {
                 category: entry.category,
                 de: entry.de,
                 en: entry.en,
-                image: format!("data:image/png;base64,{}", image["png"].as_str()?),
+                // Vektorgrafik (SVG); ältere Symboldateien enthalten noch PNG
+                image: match image["svg"].as_str() {
+                    Some(svg) => {
+                        use base64::Engine;
+                        format!(
+                            "data:image/svg+xml;base64,{}",
+                            base64::engine::general_purpose::STANDARD.encode(svg)
+                        )
+                    }
+                    None => format!("data:image/png;base64,{}", image["png"].as_str()?),
+                },
                 ox: image["ox"].as_f64()?,
                 oy: image["oy"].as_f64()?,
                 w: image["w"].as_f64()?,

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Eigene Dateitypen von VisuTeX (freedesktop.org shared-mime-info).
+     Wird von den deb/rpm-Paketen nach /usr/share/mime/packages/ installiert und von der
+     App-eigenen Einrichtung nach ~/.local/share/mime/packages/visutex.xml geschrieben. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-visutex-addon">
+    <comment>VisuTeX add-on</comment>
+    <comment xml:lang="de">VisuTeX-Add-on</comment>
+    <sub-class-of type="application/zip"/>
+    <glob pattern="*.vtxaddon"/>
+  </mime-type>
+  <mime-type type="application/x-visutex-project">
+    <comment>VisuTeX project</comment>
+    <comment xml:lang="de">VisuTeX-Projekt</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.visutex"/>
+  </mime-type>
+  <mime-type type="application/x-visutex-slides">
+    <comment>VisuTeX presentation</comment>
+    <comment xml:lang="de">VisuTeX-Präsentation</comment>
+    <sub-class-of type="application/json"/>
+    <glob pattern="*.vtxslides"/>
+  </mime-type>
+</mime-info>

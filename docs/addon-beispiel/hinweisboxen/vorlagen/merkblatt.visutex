@@ -1,0 +1,21 @@
+{
+  "format": "visutex-project",
+  "version": 2,
+  "settings": {
+    "documentClass": "article",
+    "metadata": { "title": "Merkblatt" }
+  },
+  "document": {
+    "type": "doc",
+    "content": [
+      { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Merkblatt" }] },
+      { "type": "paragraph", "content": [{ "type": "text", "text": "Dieses Merkblatt stammt aus dem Beispiel-Add-on „Hinweisboxen“." }] },
+      { "type": "rawLatexBlock", "attrs": { "rawLatex": "\\hinweis{Wichtige Information für die Leserinnen und Leser.}" } },
+      { "type": "paragraph", "content": [{ "type": "text", "text": "Weiterer Text." }] },
+      { "type": "rawLatexBlock", "attrs": { "rawLatex": "\\warnung{Vor Arbeitsbeginn die Anlage spannungsfrei schalten.}" } }
+    ]
+  },
+  "customPreamble": null,
+  "lastMode": "visual",
+  "code": null
+}

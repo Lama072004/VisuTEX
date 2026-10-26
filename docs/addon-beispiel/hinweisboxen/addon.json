@@ -1,0 +1,23 @@
+{
+  "id": "hinweisboxen",
+  "name": "Hinweisboxen",
+  "version": "1.0.0",
+  "author": "Beispiel",
+  "description": "Farbige Hinweis- und Warnboxen mit eigenem LaTeX-Paket, SVG-Symbolen und einer Vorlage.",
+  "icon": "icons/addon.svg",
+  "texFiles": ["tex/hinweisboxen.sty"],
+  "preamble": ["\\usepackage{hinweisboxen}"],
+  "snippets": [
+    { "id": "hinweis", "name": "Hinweis", "group": "Boxen", "kind": "block", "latex": "\\hinweis{Text des Hinweises.}" },
+    { "id": "warnung", "name": "Warnung", "group": "Boxen", "kind": "block", "latex": "\\warnung{Text der Warnung.}" },
+    { "id": "hinweis-wort", "name": "Hinweis-Wort", "group": "Text", "kind": "inline", "latex": "\\textbf{\\color{hinweisrand}Hinweis}" }
+  ],
+  "ribbon": [
+    { "group": "Hinweisboxen", "label": "Hinweis", "icon": "icons/hinweis.svg", "snippet": "hinweis" },
+    { "group": "Hinweisboxen", "label": "Warnung", "icon": "icons/warnung.svg", "snippet": "warnung" },
+    { "group": "Hinweisboxen", "label": "Wort", "icon": "H", "snippet": "hinweis-wort" }
+  ],
+  "templates": [
+    { "id": "merkblatt", "name": "Merkblatt mit Hinweisboxen", "file": "vorlagen/merkblatt.visutex" }
+  ]
+}

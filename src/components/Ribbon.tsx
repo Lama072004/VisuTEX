@@ -80,6 +80,7 @@ import {
 } from "lucide-react";
 import type { DocumentSettings } from "../latex/settings";
 import type { InstalledAddon, RibbonEntry, Snippet } from "../api";
+import { AddonIcon } from "./AddonIcon";
 import { useT } from "../i18n";
 import { DOCUMENT_LANGUAGES } from "../latex/languages";
 import { useMathRibbonGroups } from "../math/MathRibbon";
@@ -421,8 +422,8 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
     .filter((addon) => addon.enabled)
     .flatMap((addon) =>
       addon.manifest.ribbon
-        .map((entry: RibbonEntry) => ({ entry, snippet: addon.manifest.snippets.find((snippet) => snippet.id === entry.snippet) }))
-        .filter((item): item is { entry: RibbonEntry; snippet: Snippet } => Boolean(item.snippet)),
+        .map((entry: RibbonEntry) => ({ entry, icons: addon.icons, snippet: addon.manifest.snippets.find((snippet) => snippet.id === entry.snippet) }))
+        .filter((item): item is { entry: RibbonEntry; icons: Record<string, string>; snippet: Snippet } => Boolean(item.snippet)),
     );
 
   const tabs: Array<{ id: TabId; label: string; contextual?: boolean }> = [
@@ -799,6 +800,29 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         </Stack>
       </>
     ));
+    // Wie „Meine Add-Ins“ bei Office: Bausteine aktiver Add-ons und Verwaltung
+    add("insert-addons", t("Add-ons"), (
+      <Dropdown large label={t("Meine Add-ons")} icon={<Puzzle size={22} />}>
+        {(close) => (
+          <div className="menu-list">
+            {addonEntries.length > 0 && <div className="menu-heading">{t("Bausteine aktiver Add-ons")}</div>}
+            {addonEntries.map(({ entry, icons, snippet }) => (
+              <MenuItem
+                key={`${entry.group}-${entry.label}-${snippet.id}`}
+                label={entry.label}
+                icon={<AddonIcon icon={entry.icon} icons={icons} />}
+                onClick={() => {
+                  if (visual) actions.insertSnippet(snippet);
+                  close();
+                }}
+              />
+            ))}
+            {addonEntries.length === 0 && <div className="menu-heading">{t("Keine aktiven Add-ons mit Bausteinen")}</div>}
+            <MenuItem label={t("Add-ons verwalten …")} icon={<Puzzle size={16} />} onClick={() => { actions.openAddons(); close(); }} />
+          </div>
+        )}
+      </Dropdown>
+    ));
   }
 
   if (activeTab === "layout") {
@@ -1110,7 +1134,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
     for (const [group, items] of byGroup) {
       add(`addon-${group}`, group, (
         <>
-          {items.map(({ entry, snippet }) => (
+          {items.map(({ entry, icons, snippet }) => (
             <button
               key={`${entry.label}-${snippet.id}`}
               type="button"
@@ -1120,7 +1144,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => actions.insertSnippet(snippet)}
             >
-              <span className="addon-icon">{entry.icon || "⧉"}</span>
+              <AddonIcon icon={entry.icon} icons={icons} />
               <span className="ribbon-button-label">{entry.label}</span>
             </button>
           ))}

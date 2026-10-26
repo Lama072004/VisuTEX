@@ -102,7 +102,7 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Pro
         </button>
         <span className="pane-status">
           {status.state === "compiling" && status.progress}
-          {status.state === "done" && `${status.result.pages.length} ${t("Seiten")} · ${(status.result.durationMs / 1000).toFixed(1)} s`}
+          {status.state === "done" && `${status.result.pages.length} ${t(status.result.pages.length === 1 ? "Seite" : "Seiten")} · ${(status.result.durationMs / 1000).toFixed(1)} s`}
           {status.state === "done" && errors.length > 0 && <span className="status-error"> · {t("PDF trotz Fehlern erzeugt")}</span>}
           {status.state === "failed" && <span className="status-error">{t("Fehler beim Kompilieren")}</span>}
         </span>

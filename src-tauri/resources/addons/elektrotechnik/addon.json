@@ -1,8 +1,9 @@
 {
   "id": "elektrotechnik",
   "name": "Elektrotechnik",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "VisuTeX",
+  "icon": "icons/addon.svg",
   "description": "SI-Einheiten (siunitx) und CircuiTikZ-Schaltungsbausteine für technische Arbeiten.",
   "texFiles": ["tex/visutex-et.sty"],
   "preamble": ["\\usepackage{siunitx}", "\\usepackage{visutex-et}"],
@@ -16,10 +17,10 @@
     { "id": "drehstrom", "name": "Drehstrom-Symbol", "group": "Einheiten", "kind": "inline", "latex": "\\drehstrom{}" }
   ],
   "ribbon": [
-    { "group": "Elektrotechnik", "label": "Wert + Einheit", "icon": "Ω", "snippet": "si-wert" },
-    { "group": "Elektrotechnik", "label": "Ohmsches Gesetz", "icon": "U=RI", "snippet": "ohmsches-gesetz" },
-    { "group": "Elektrotechnik", "label": "Spannungsteiler", "icon": "⏚", "snippet": "spannungsteiler" },
-    { "group": "Elektrotechnik", "label": "RC-Glied", "icon": "RC", "snippet": "rc-glied" }
+    { "group": "Elektrotechnik", "label": "Wert + Einheit", "icon": "icons/wert-einheit.svg", "snippet": "si-wert" },
+    { "group": "Elektrotechnik", "label": "Ohmsches Gesetz", "icon": "icons/ohmsches-gesetz.svg", "snippet": "ohmsches-gesetz" },
+    { "group": "Elektrotechnik", "label": "Spannungsteiler", "icon": "icons/spannungsteiler.svg", "snippet": "spannungsteiler" },
+    { "group": "Elektrotechnik", "label": "RC-Glied", "icon": "icons/rc-glied.svg", "snippet": "rc-glied" }
   ],
   "templates": []
 }

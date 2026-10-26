@@ -69,13 +69,25 @@ pub fn write_bytes_atomic(path: &Path, content: &[u8]) -> Result<(), String> {
             path.display()
         )
     })?;
-    std::fs::rename(&temporary, path).map_err(|error| {
+    replace_with(&temporary, path).map_err(|error| {
         let _ = std::fs::remove_file(&temporary);
         format!(
             "„{}“ konnte nicht gespeichert werden: {error}",
             path.display()
         )
     })
+}
+
+/// Ersetzt `path` durch die fertige Zwischendatei `temporary`. Normalerweise ein Umbenennen;
+/// lehnt das Dateisystem es ab (umgeleitete App-Daten in Paket-Umgebungen, manche Netz- und
+/// Sync-Ordner: „anderes Laufwerk“, os error 17), wird stattdessen kopiert.
+pub fn replace_with(temporary: &Path, path: &Path) -> std::io::Result<()> {
+    if std::fs::rename(temporary, path).is_ok() {
+        return Ok(());
+    }
+    std::fs::copy(temporary, path)?;
+    let _ = std::fs::remove_file(temporary);
+    Ok(())
 }
 
 /// Schreibt eingebettete Bilder des Exports in den Projektordner (falls nicht vorhanden).

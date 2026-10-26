@@ -173,6 +173,61 @@ fn tikz_preview_compiles_and_renders() {
     let stored = visutex_lib::pdf::load(output.pdf).unwrap();
     let png = visutex_lib::pdf::render_page_png(&stored, 0, 2.5).unwrap();
     assert!(png.starts_with(&[0x89, b'P', b'N', b'G']));
+    // Vorschau als Vektorgrafik (wie in der App) – und zurück nach PDF (Beamer-Export)
+    let view = visutex_lib::pdf::page_view(&stored, 0).unwrap();
+    let svg = visutex_lib::pdf::render_page_svg(&stored, 0).unwrap();
+    let svg = visutex_lib::pdf::stack_svg(&[(svg, view)], 2.5);
+    assert!(
+        svg.starts_with("<svg") && svg.contains("<path"),
+        "keine Vektorpfade"
+    );
+    let pdf = visutex_lib::images::svg_to_pdf(svg.as_bytes()).expect("SVG → PDF");
+    assert!(pdf.starts_with(b"%PDF"));
+}
+
+/// Block-Vorschauen (Roh-LaTeX) als zugeschnittene SVG, auch über mehrere Seiten.
+#[test]
+#[ignore]
+fn block_previews_are_cropped_svg() {
+    let preamble = "\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}\n";
+    let long: String = (1..=80).map(|n| format!("Zeile {n}\\par\n")).collect();
+    let blocks = vec![
+        "\\begin{tabular}{|c|c|}\\hline a & b\\\\\\hline\\end{tabular}".to_string(),
+        long,
+    ];
+    let previews = visutex_lib::preview::render_blocks(preamble, &blocks, None, &[], &bundle());
+    assert_eq!(previews.len(), 2);
+    for preview in &previews {
+        assert!(preview.error.is_none(), "{:?}", preview.error);
+        let image = preview.image.as_deref().unwrap();
+        assert!(
+            image.starts_with("data:image/svg+xml;base64,"),
+            "{}",
+            &image[..40]
+        );
+    }
+    use base64::Engine;
+    let decode = |url: &str| {
+        String::from_utf8(
+            base64::engine::general_purpose::STANDARD
+                .decode(url.trim_start_matches("data:image/svg+xml;base64,"))
+                .unwrap(),
+        )
+        .unwrap()
+    };
+    // Tabelle: zugeschnitten (deutlich kleiner als eine A4-Seite mit 2 px je pt)
+    let table = decode(previews[0].image.as_deref().unwrap());
+    let width: f32 = table
+        .split("width=\"")
+        .nth(1)
+        .and_then(|rest| rest.split('"').next())
+        .and_then(|value| value.parse().ok())
+        .unwrap();
+    assert!(width > 20.0 && width < 400.0, "Breite {width}");
+    // Langer Block: zwei Seiten untereinander mit eindeutigen IDs
+    let long = decode(previews[1].image.as_deref().unwrap());
+    assert!(long.matches("<svg").count() >= 3, "mehrere Seiten erwartet");
+    assert!(long.contains("id=\"v1-"));
 }
 
 #[test]
@@ -417,4 +472,42 @@ Siehe \cite{mueller2020,knuth1984,lee2019,huber2018}.
     let stored = visutex_lib::pdf::load(output.pdf).unwrap();
     let png = visutex_lib::pdf::render_page_png(&stored, 0, 1.5).unwrap();
     std::fs::write(root.join("seite1.png"), png).unwrap();
+}
+
+/// Das Beispiel-Add-on aus `docs/ADDONS.md`: Vorlage mit Add-on-Präambel und eigenem Paket
+/// (über den zusätzlichen Suchpfad) kompiliert fehlerfrei.
+#[test]
+#[ignore]
+fn example_addon_template_compiles() {
+    let addon = manifest().join("../docs/addon-beispiel/hinweisboxen");
+    let manifest_text = std::fs::read_to_string(addon.join("addon.json")).unwrap();
+    let addon_manifest = visutex_lib::core::addon::parse_manifest(&manifest_text).unwrap();
+    let template = std::fs::read_to_string(addon.join(&addon_manifest.templates[0].file)).unwrap();
+    let loaded = visutex_lib::core::project::parse_project(&template).unwrap();
+    let exported = export_document(
+        &loaded.project.document,
+        &ExportOptions {
+            settings: &loaded.project.settings,
+            custom_preamble: None,
+            addon_preamble: &addon_manifest.preamble,
+        },
+    );
+    assert!(exported.latex.contains(r"\usepackage{hinweisboxen}"));
+    assert!(exported.latex.contains(r"\warnung{"));
+    let output = compile(
+        CompileRequest {
+            latex: exported.latex,
+            project_root: Some(project_dir("visutex-addon-beispiel")),
+            extra_search_paths: vec![addon.join("tex")],
+        },
+        &bundle(),
+        &mut |note| eprintln!("  {note}"),
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
+    assert!(output
+        .messages
+        .iter()
+        .all(|message| message.severity != "error"));
+    let stored = visutex_lib::pdf::load(output.pdf).unwrap();
+    assert_eq!(stored.pages.len(), 1);
 }

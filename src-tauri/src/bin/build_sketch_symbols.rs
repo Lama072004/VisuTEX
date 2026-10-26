@@ -11,11 +11,10 @@
 //! Ablauf: Jeder Eintrag steht auf einer eigenen Seite (8 × 8 cm, Ursprung in
 //! der Mitte). Einträge, die Fehler erzeugen (unbekannter Name), werden
 //! entfernt und es wird erneut kompiliert. Anschlusspunkte schreibt TeX per
-//! `\typeout` ins Protokoll. Jede Seite wird gerastert, auf den Inhalt
-//! zugeschnitten und als PNG mit Transparenz (schwarz, Deckkraft = Dunkelheit)
-//! gespeichert.
+//! `\typeout` ins Protokoll. Jede Seite wird zum Zuschneiden kurz gerastert
+//! und dann als **SVG** (Vektorgrafik, transparenter Hintergrund) gespeichert –
+//! Palette und Zeichenfläche bleiben so in jeder Vergrößerung scharf.
 
-use base64::Engine;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use visutex_lib::compile::{compile, CompileRequest};
@@ -164,7 +163,6 @@ fn main() {
         let png = visutex_lib::pdf::render_page_png(&stored, index, RENDER_SCALE).expect("Rastern");
         let image = image::load_from_memory(&png).expect("PNG").to_rgba8();
         let (width, height) = image.dimensions();
-        let mut alpha = image::RgbaImage::new(width, height);
         let (mut left, mut top, mut right, mut bottom) = (width, height, 0u32, 0u32);
         for (x, y, pixel) in image.enumerate_pixels() {
             let darkness = 255 - ((pixel[0] as u32 + pixel[1] as u32 + pixel[2] as u32) / 3) as u8;
@@ -174,7 +172,6 @@ fn main() {
                 right = right.max(x);
                 bottom = bottom.max(y);
             }
-            alpha.put_pixel(x, y, image::Rgba([0, 0, 0, darkness]));
         }
         if right < left || bottom < top {
             eprintln!("Leeres Symbol: {}", entry.id);
@@ -185,13 +182,16 @@ fn main() {
         let top = top.saturating_sub(pad);
         let right = (right + pad).min(width - 1);
         let bottom = (bottom + pad).min(height - 1);
-        let cropped =
-            image::imageops::crop_imm(&alpha, left, top, right - left + 1, bottom - top + 1)
-                .to_image();
-        let mut bytes = std::io::Cursor::new(Vec::new());
-        cropped
-            .write_to(&mut bytes, image::ImageFormat::Png)
-            .expect("PNG schreiben");
+        // Ausschnitt in Punkten; Ausgabegröße wie die Rasterpixel (ox/oy/w/h bleiben gültig)
+        let scale = RENDER_SCALE;
+        let view = visutex_lib::pdf::SvgView {
+            x: left as f32 / scale,
+            y: top as f32 / scale,
+            width: (right - left + 1) as f32 / scale,
+            height: (bottom - top + 1) as f32 / scale,
+        };
+        let page_svg = visutex_lib::pdf::render_page_svg(&stored, index).expect("SVG");
+        let svg = visutex_lib::pdf::stack_svg(&[(page_svg, view)], scale);
         let mut node_anchors: Vec<(String, f64, f64)> = anchors.remove(&index).unwrap_or_default();
         if node_anchors
             .iter()
@@ -207,7 +207,7 @@ fn main() {
         symbols.insert(
             entry.id.to_string(),
             serde_json::json!({
-                "png": base64::engine::general_purpose::STANDARD.encode(bytes.into_inner()),
+                "svg": svg,
                 "ox": round(origin - left as f64),
                 "oy": round(origin - top as f64),
                 "w": right - left + 1,

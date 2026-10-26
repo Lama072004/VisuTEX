@@ -46,7 +46,7 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     }
     let temporary = path.with_extension("tmp");
     std::fs::write(&temporary, bytes)?;
-    std::fs::rename(&temporary, path)
+    crate::files::replace_with(&temporary, path)
 }
 
 /// Entfernt Ordner älterer Programmversionen (`name-<alte Version>`).

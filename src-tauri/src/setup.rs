@@ -1,10 +1,12 @@
 //! Einrichtung der heruntergeladenen EXE (wie ein Installer, aber in der App):
 //! Installationsort wählen, EXE dorthin kopieren, Verknüpfungen (Desktop, Startmenü),
-//! Autostart und – unter Windows – Eintrag in „Apps“ zum Deinstallieren.
+//! Autostart, eigene Dateitypen (`.vtxaddon`, `.visutex`, `.vtxslides` – Doppelklick öffnet
+//! VisuTeX) und – unter Windows – Eintrag in „Apps“ zum Deinstallieren.
 //!
-//! Windows: Verknüpfungen über die Shell (PowerShell/WScript.Shell), Autostart und
-//! Deinstallationseintrag in `HKCU` (ohne Administratorrechte). Linux: `.desktop`-Dateien
-//! nach XDG (Anwendungsmenü, Desktop, `~/.config/autostart`).
+//! Windows: Verknüpfungen über die Shell (PowerShell/WScript.Shell), Autostart,
+//! Dateitypen und Deinstallationseintrag in `HKCU` (ohne Administratorrechte). Linux:
+//! `.desktop`-Dateien nach XDG (Anwendungsmenü, Desktop, `~/.config/autostart`) und
+//! MIME-Typen in `~/.local/share/mime`.
 //!
 //! Von Paketverwaltern bzw. dem MSI/NSIS-Installer installierte Programme und
 //! Entwicklungs-Builds zeigen die Einrichtung nicht.
@@ -15,9 +17,37 @@ use std::process::Command;
 
 const APP_NAME: &str = "VisuTeX";
 const STATE_FILE: &str = "einrichtung.json";
-/// Symbol für Linux-Verknüpfungen
+/// Symbol für Linux-Verknüpfungen – Vektorgrafik (freedesktop.org unterstützt SVG-Symbole)
 #[cfg(not(windows))]
-const ICON_PNG: &[u8] = include_bytes!("../icons/128x128.png");
+const ICON_SVG: &str = include_str!("../icons/visutex.svg");
+
+/// Eigene Dateitypen: (Endung, Windows-ProgID, MIME-Typ, Bezeichnung). Die Setup.exe bzw. die
+/// Linux-Pakete registrieren dieselben Typen (`tauri.conf.json` → `fileAssociations`) –
+/// mit eigener ProgID, damit sich beide Installationsarten nicht gegenseitig austragen.
+pub const FILE_TYPES: &[(&str, &str, &str, &str)] = &[
+    (
+        "vtxaddon",
+        "VisuTeXApp.Addon",
+        "application/x-visutex-addon",
+        "VisuTeX-Add-on",
+    ),
+    (
+        "visutex",
+        "VisuTeXApp.Projekt",
+        "application/x-visutex-project",
+        "VisuTeX-Projekt",
+    ),
+    (
+        "vtxslides",
+        "VisuTeXApp.Praesentation",
+        "application/x-visutex-slides",
+        "VisuTeX-Präsentation",
+    ),
+];
+
+/// MIME-Typen für Linux (freedesktop.org shared-mime-info) – dieselbe Datei liefern die
+/// deb/rpm-Pakete nach `/usr/share/mime/packages/` aus.
+pub const MIME_XML: &str = include_str!("../../packaging/linux/visutex-mime.xml");
 
 /// Gespeicherte Entscheidung (im Datenordner der App).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -349,6 +379,10 @@ pub fn refresh_after_update(data_dir: &Path) {
         .install_dir
         .as_ref()
         .is_some_and(|dir| same_path(&PathBuf::from(dir).join(exe_name()), &exe));
+    // Ältere Installationen kannten die Dateitypen noch nicht
+    if installed {
+        let _ = register_file_types(&exe);
+    }
     if installed && register_uninstall(&exe).is_ok() {
         state.version = Some(current.to_string());
         let _ = save_state(data_dir, &state);
@@ -390,6 +424,8 @@ fn program_files(dir: &Path) -> Vec<PathBuf> {
     vec![
         exe.with_extension("old"),
         exe.with_extension("neu"),
+        dir.join("visutex.svg"),
+        // ältere Installationen legten das Symbol als PNG ab
         dir.join("visutex.png"),
         exe,
     ]
@@ -405,6 +441,7 @@ fn apply_integration(state: &SetupState, exe: &Path) -> Result<(), String> {
         shortcut(ShortcutPlace::StartMenu, exe)?;
     }
     autostart(state.autostart, exe)?;
+    register_file_types(exe)?;
     register_uninstall(exe)?;
     Ok(())
 }
@@ -418,6 +455,7 @@ fn remove_integration(state: &SetupState) {
     if let Some(exe) = current_exe() {
         let _ = autostart(false, &exe);
     }
+    unregister_file_types();
     let _ = unregister_uninstall();
     let _ = state;
 }
@@ -489,6 +527,36 @@ fn unregister_uninstall() -> Result<(), String> {
         return sandbox_marker("apps-eintrag.txt", None);
     }
     system_unregister_uninstall()
+}
+
+/// Öffnen-Befehl für die eigenen Dateitypen.
+fn open_command(exe: &Path) -> String {
+    if cfg!(windows) {
+        format!("\"{}\" \"%1\"", exe.display())
+    } else {
+        format!("\"{}\" %f", exe.display())
+    }
+}
+
+fn register_file_types(exe: &Path) -> Result<(), String> {
+    if sandbox().is_some() {
+        let lines: String = FILE_TYPES
+            .iter()
+            .map(|(extension, prog_id, mime, _)| {
+                format!("{extension}\t{prog_id}\t{mime}\t{}\n", open_command(exe))
+            })
+            .collect();
+        return sandbox_marker("dateitypen.txt", Some(lines));
+    }
+    system_register_file_types(exe)
+}
+
+fn unregister_file_types() {
+    if sandbox().is_some() {
+        let _ = sandbox_marker("dateitypen.txt", None);
+        return;
+    }
+    system_unregister_file_types();
 }
 
 #[cfg(windows)]
@@ -637,6 +705,64 @@ fn system_unregister_uninstall() -> Result<(), String> {
 }
 
 #[cfg(windows)]
+const CLASSES_KEY: &str = r"HKCU\Software\Classes";
+
+/// Standardwert eines Registrierungsschlüssels (`reg query … /ve`).
+#[cfg(windows)]
+fn reg_default_value(key: &str) -> Option<String> {
+    let output = hidden(Command::new("reg").args(["query", key, "/ve"]))
+        .output()
+        .ok()?;
+    let text = String::from_utf8_lossy(&output.stdout).into_owned();
+    text.lines().find_map(|line| {
+        line.split_once("REG_SZ")
+            .map(|(_, value)| value.trim().to_string())
+    })
+}
+
+/// Explorer über geänderte Dateizuordnungen informieren (Symbole, „Öffnen mit“).
+#[cfg(windows)]
+fn notify_association_change() {
+    use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
+    // SAFETY: Benachrichtigung ohne Elemente, keine Zeiger
+    unsafe { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None) };
+}
+
+#[cfg(windows)]
+fn system_register_file_types(exe: &Path) -> Result<(), String> {
+    let icon = format!("\"{}\",0", exe.display());
+    let command = open_command(exe);
+    for (extension, prog_id, _, description) in FILE_TYPES {
+        let class = format!(r"{CLASSES_KEY}\{prog_id}");
+        for (key, value) in [
+            (class.clone(), *description),
+            (format!(r"{class}\DefaultIcon"), icon.as_str()),
+            (format!(r"{class}\shell\open\command"), command.as_str()),
+            (format!(r"{CLASSES_KEY}\.{extension}"), *prog_id),
+        ] {
+            reg(&["add", &key, "/ve", "/d", value, "/f"]).map_err(|error| {
+                format!("Dateityp .{extension} konnte nicht registriert werden: {error}")
+            })?;
+        }
+    }
+    notify_association_change();
+    Ok(())
+}
+
+#[cfg(windows)]
+fn system_unregister_file_types() {
+    for (extension, prog_id, _, _) in FILE_TYPES {
+        // Die Endung nur austragen, wenn sie noch auf diese Installation zeigt
+        let extension_key = format!(r"{CLASSES_KEY}\.{extension}");
+        if reg_default_value(&extension_key).as_deref() == Some(*prog_id) {
+            let _ = reg(&["delete", &extension_key, "/f"]);
+        }
+        let _ = reg(&["delete", &format!(r"{CLASSES_KEY}\{prog_id}"), "/f"]);
+    }
+    notify_association_change();
+}
+
+#[cfg(windows)]
 fn delete_after_exit(files: &[PathBuf], dir: &Path) {
     // kurz warten, bis die App beendet ist; dann eigene Dateien und den Ordner, falls leer
     let list = files
@@ -691,17 +817,67 @@ fn system_shortcut_path(place: ShortcutPlace) -> Option<PathBuf> {
 fn desktop_entry(exe: &Path) -> String {
     let icon = exe
         .parent()
-        .map(|dir| dir.join("visutex.png"))
+        .map(|dir| dir.join("visutex.svg"))
         .unwrap_or_default();
     if let Some(parent) = icon.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&icon, ICON_PNG);
+    let _ = std::fs::write(&icon, ICON_SVG);
+    let mime_types: String = FILE_TYPES
+        .iter()
+        .map(|(_, _, mime, _)| format!("{mime};"))
+        .collect();
     format!(
-        "[Desktop Entry]\nType=Application\nName=VisuTeX\nComment=LaTeX-Editor\nExec=\"{}\" %f\nIcon={}\nTerminal=false\nCategories=Office;Publishing;\nMimeType=text/x-tex;\n",
-        exe.display(),
+        "[Desktop Entry]\nType=Application\nName=VisuTeX\nComment=LaTeX-Editor\nExec={}\nIcon={}\nTerminal=false\nCategories=Office;Publishing;\nMimeType=text/x-tex;{mime_types}\n",
+        open_command(exe),
         icon.display()
     )
+}
+
+#[cfg(not(windows))]
+fn mime_dir() -> PathBuf {
+    home().join(".local").join("share").join("mime")
+}
+
+#[cfg(not(windows))]
+fn applications_dir() -> PathBuf {
+    home().join(".local").join("share").join("applications")
+}
+
+/// Unsichtbarer Eintrag, der VisuTeX als Programm für die eigenen Dateitypen anmeldet –
+/// auch ohne Verknüpfung im Anwendungsmenü.
+#[cfg(not(windows))]
+const FILE_TYPES_DESKTOP: &str = "visutex-dateitypen.desktop";
+
+#[cfg(not(windows))]
+fn refresh_mime_databases() {
+    let _ = Command::new("update-mime-database")
+        .arg(mime_dir())
+        .output();
+    let _ = Command::new("update-desktop-database")
+        .arg(applications_dir())
+        .output();
+}
+
+#[cfg(not(windows))]
+fn system_register_file_types(exe: &Path) -> Result<(), String> {
+    let packages = mime_dir().join("packages");
+    std::fs::create_dir_all(&packages).map_err(|error| error.to_string())?;
+    std::fs::write(packages.join("visutex.xml"), MIME_XML)
+        .map_err(|error| format!("Dateitypen konnten nicht registriert werden: {error}"))?;
+    let handler = applications_dir().join(FILE_TYPES_DESKTOP);
+    write_desktop_file(&handler, exe)?;
+    let text = std::fs::read_to_string(&handler).unwrap_or_default();
+    let _ = std::fs::write(&handler, format!("{text}NoDisplay=true\n"));
+    refresh_mime_databases();
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn system_unregister_file_types() {
+    let _ = std::fs::remove_file(mime_dir().join("packages").join("visutex.xml"));
+    let _ = std::fs::remove_file(applications_dir().join(FILE_TYPES_DESKTOP));
+    refresh_mime_databases();
 }
 
 #[cfg(not(windows))]
@@ -811,6 +987,53 @@ mod tests {
                 .file_name()
                 .is_some_and(|name| name.to_string_lossy().to_lowercase().contains("visutex")));
         }
+    }
+
+    /// Eigene Einrichtung, Setup.exe/Pakete (`tauri.conf.json`) und MIME-Datei kennen dieselben Dateitypen.
+    #[test]
+    fn file_types_match_bundle_and_mime_definitions() {
+        let config: serde_json::Value =
+            serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let associations = config["bundle"]["fileAssociations"].as_array().unwrap();
+        assert_eq!(associations.len(), FILE_TYPES.len());
+        for (extension, prog_id, mime, _) in FILE_TYPES {
+            let association = associations
+                .iter()
+                .find(|entry| entry["ext"][0] == *extension)
+                .unwrap_or_else(|| panic!(".{extension} fehlt in fileAssociations"));
+            assert_eq!(association["mimeType"], *mime);
+            // eigene ProgID ≠ die der Setup.exe (sonst trügen sich beide gegenseitig aus)
+            assert_ne!(association["name"], *prog_id);
+            assert!(MIME_XML.contains(&format!("type=\"{mime}\"")));
+            assert!(MIME_XML.contains(&format!("pattern=\"*.{extension}\"")));
+        }
+        for package in ["deb", "rpm"] {
+            assert!(config["bundle"]["linux"][package]["files"]
+                .as_object()
+                .unwrap()
+                .contains_key("/usr/share/mime/packages/visutex.xml"));
+        }
+        assert!(open_command(Path::new("/opt/VisuTeX")).contains("VisuTeX"));
+    }
+
+    /// Testmodus: Dateitypen werden „registriert“ und beim Deinstallieren wieder entfernt –
+    /// ohne die echte Registrierung bzw. `~/.local/share/mime` anzufassen.
+    #[test]
+    fn registers_and_removes_file_types_in_sandbox() {
+        let root = std::env::temp_dir().join(format!("visutex-dateitypen-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::env::set_var("VISUTEX_SETUP_SANDBOX", &root);
+        let exe = root.join("Programme").join("VisuTeX").join(exe_name());
+        register_file_types(&exe).unwrap();
+        let marker = std::fs::read_to_string(root.join("dateitypen.txt")).unwrap();
+        for (extension, prog_id, mime, _) in FILE_TYPES {
+            assert!(marker.contains(&format!("{extension}\t{prog_id}\t{mime}\t")));
+        }
+        assert!(marker.contains(&exe.display().to_string()));
+        unregister_file_types();
+        assert!(!root.join("dateitypen.txt").exists());
+        std::env::remove_var("VISUTEX_SETUP_SANDBOX");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

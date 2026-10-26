@@ -1,8 +1,9 @@
 //! Manifest deklarativer Add-ons (`addon.json`).
 //!
 //! Add-ons enthalten bewusst **keinen ausführbaren Code**: nur TeX-Dateien
-//! (zusätzlicher Suchpfad für Tectonic), Präambelzeilen, Snippets, Ribbon-Einträge
-//! und Vorlagen. Alle Werte werden hier validiert.
+//! (zusätzlicher Suchpfad für Tectonic), Präambelzeilen, Snippets, Ribbon-Einträge,
+//! Vorlagen und SVG-Symbole. Alle Werte werden hier validiert.
+//! Anleitung für Add-on-Ersteller: `docs/ADDONS.md`.
 
 use super::settings::is_safe_relative_path;
 use serde::{Deserialize, Serialize};
@@ -29,8 +30,18 @@ pub struct Snippet {
 pub struct RibbonEntry {
     pub group: String,
     pub label: String,
+    /// Kurzer Text (höchstens 4 Zeichen, z. B. „Ω“) oder Pfad zu einer SVG-Datei im Add-on
+    /// (z. B. `icons/widerstand.svg`)
     pub icon: String,
     pub snippet: String,
+}
+
+/// Höchstgröße einer SVG-Symboldatei.
+pub const MAX_ICON_BYTES: usize = 64 * 1024;
+
+/// Verweist `icon` auf eine SVG-Datei (statt eines Textsymbols)?
+pub fn is_svg_icon(icon: &str) -> bool {
+    icon.to_ascii_lowercase().ends_with(".svg")
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Default)]
@@ -54,6 +65,86 @@ pub struct AddonManifest {
     pub snippets: Vec<Snippet>,
     pub ribbon: Vec<RibbonEntry>,
     pub templates: Vec<TemplateRef>,
+    /// Symbol des Add-ons (SVG-Datei im Add-on, optional)
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+}
+
+impl AddonManifest {
+    /// Alle SVG-Symboldateien (Add-on und Menüband-Einträge), ohne Doppelte.
+    pub fn icon_files(&self) -> Vec<String> {
+        let mut files: Vec<String> = Vec::new();
+        for icon in std::iter::once(&self.icon).chain(self.ribbon.iter().map(|entry| &entry.icon)) {
+            if is_svg_icon(icon) && !files.contains(icon) {
+                files.push(icon.clone());
+            }
+        }
+        files
+    }
+}
+
+/// Inhalt einer SVG-Symboldatei prüfen: Größe, SVG-Wurzelelement, kein Skript und keine
+/// externen Verweise (angezeigt wird das Symbol ohnehin als Bild, wo Skripte nicht laufen).
+pub fn check_svg_icon(name: &str, bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() > MAX_ICON_BYTES {
+        return Err(format!("Das Symbol „{name}“ ist größer als 64 KB."));
+    }
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| format!("Das Symbol „{name}“ ist keine UTF-8-Textdatei."))?;
+    let lower = text.to_ascii_lowercase();
+    if !lower.contains("<svg") {
+        return Err(format!("„{name}“ ist keine SVG-Datei."));
+    }
+    for forbidden in [
+        "<script",
+        "javascript:",
+        "<foreignobject",
+        "<iframe",
+        "<embed",
+        "<object",
+    ] {
+        if lower.contains(forbidden) {
+            return Err(format!(
+                "Das Symbol „{name}“ enthält Unzulässiges ({forbidden})."
+            ));
+        }
+    }
+    // Ereignis-Attribute (onload=, onclick= …)
+    let bytes_lower = lower.as_bytes();
+    for (index, _) in lower.match_indices("on") {
+        let before = index.checked_sub(1).map(|i| bytes_lower[i]);
+        if !matches!(before, Some(b' ' | b'\n' | b'\t' | b'\r' | b'/')) {
+            continue;
+        }
+        let name_end = lower[index + 2..]
+            .find(|c: char| !c.is_ascii_lowercase())
+            .map(|offset| index + 2 + offset)
+            .unwrap_or(lower.len());
+        if name_end > index + 2 && lower[name_end..].trim_start().starts_with('=') {
+            return Err(format!(
+                "Das Symbol „{name}“ enthält Ereignis-Attribute (z. B. onload)."
+            ));
+        }
+    }
+    // Nur eingebettete Inhalte: externe Verweise (http, Dateien) sind nicht erlaubt
+    for attribute in ["href=\"", "href='", "src=\"", "src='"] {
+        let mut rest = lower.as_str();
+        while let Some(index) = rest.find(attribute) {
+            let value = &rest[index + attribute.len()..];
+            if !(value.starts_with('#') || value.starts_with("data:image/")) {
+                return Err(format!(
+                    "Das Symbol „{name}“ verweist auf eine externe Datei."
+                ));
+            }
+            rest = value;
+        }
+    }
+    if lower.contains("url(http") || lower.contains("@import") {
+        return Err(format!(
+            "Das Symbol „{name}“ verweist auf eine externe Datei."
+        ));
+    }
+    Ok(())
 }
 
 pub fn is_valid_id(id: &str) -> bool {
@@ -154,7 +245,28 @@ pub fn validate(mut manifest: AddonManifest) -> Result<AddonManifest, String> {
             entry.group = manifest.name.clone();
         }
         entry.label = clean(&entry.label, 40);
-        entry.icon = entry.icon.chars().take(4).collect();
+        entry.icon = entry.icon.trim().replace('\\', "/");
+        if is_svg_icon(&entry.icon) {
+            if !is_safe_relative_path(&entry.icon) || entry.icon.len() > 200 {
+                return Err(format!(
+                    "Unzulässiger Symbolpfad „{}“ im Add-on.",
+                    entry.icon
+                ));
+            }
+        } else {
+            entry.icon = entry.icon.chars().take(4).collect();
+        }
+    }
+    manifest.icon = manifest.icon.trim().replace('\\', "/");
+    if !manifest.icon.is_empty()
+        && (!is_svg_icon(&manifest.icon)
+            || !is_safe_relative_path(&manifest.icon)
+            || manifest.icon.len() > 200)
+    {
+        return Err(format!(
+            "Das Add-on-Symbol muss eine SVG-Datei im Add-on sein („{}“).",
+            manifest.icon
+        ));
     }
     for template in &mut manifest.templates {
         template.file = template.file.trim().replace('\\', "/");
@@ -192,5 +304,37 @@ mod tests {
             r#"{ "id": "x", "ribbon": [{ "label": "a", "snippet": "fehlt" }] }"#
         )
         .is_err());
+    }
+
+    #[test]
+    fn accepts_svg_icons_and_rejects_unsafe_ones() {
+        let manifest = parse_manifest(
+            r#"{ "id": "x", "icon": "icons/addon.svg",
+                 "snippets": [{ "id": "a", "latex": "a" }, { "id": "b", "latex": "b" }],
+                 "ribbon": [{ "label": "A", "icon": "icons\\a.svg", "snippet": "a" },
+                            { "label": "B", "icon": "Ωmega", "snippet": "b" }] }"#,
+        )
+        .unwrap();
+        assert_eq!(manifest.ribbon[0].icon, "icons/a.svg");
+        assert_eq!(manifest.ribbon[1].icon, "Ωmeg");
+        assert_eq!(
+            manifest.icon_files(),
+            vec!["icons/addon.svg", "icons/a.svg"]
+        );
+        assert!(parse_manifest(r#"{ "id": "x", "icon": "logo.png" }"#).is_err());
+        assert!(parse_manifest(r#"{ "id": "x", "icon": "../fremd.svg" }"#).is_err());
+
+        let good = br##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><use href="#p"/><path id="p" d="M0 0h24" stroke="currentColor"/></svg>"##;
+        assert!(check_svg_icon("gut.svg", good).is_ok());
+        assert!(check_svg_icon("x.svg", b"<svg><script>alert(1)</script></svg>").is_err());
+        assert!(check_svg_icon(
+            "x.svg",
+            br#"<svg onload="x"><image href="https://example.org/a.png"/></svg>"#
+        )
+        .is_err());
+        assert!(check_svg_icon("x.svg", b"kein svg").is_err());
+        assert!(check_svg_icon("x.svg", br#"<svg onload="alert(1)"/>"#).is_err());
+        assert!(check_svg_icon("x.svg", br#"<svg><g font="Monotype"/></svg>"#).is_ok());
+        assert!(check_svg_icon("x.svg", &vec![b' '; MAX_ICON_BYTES + 1]).is_err());
     }
 }

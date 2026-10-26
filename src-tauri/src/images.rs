@@ -276,8 +276,17 @@ pub fn slide_image(source: &Path) -> Result<SlideImage, String> {
         }
         "gif" | "webp" | "bmp" | "tif" | "tiff" => ("image/png", to_png(&bytes)?),
         "pdf" => {
+            // Vektorgrafik statt Rasterbild (Größe wie bisher: 3 Pixel je Punkt)
             let stored = crate::pdf::load(bytes)?;
-            ("image/png", crate::pdf::render_page_png(&stored, 0, 3.0)?)
+            let view =
+                crate::pdf::page_view(&stored, 0).ok_or("Die PDF-Grafik hat keine Seite.")?;
+            let svg = crate::pdf::render_page_svg(&stored, 0)?;
+            let svg = crate::pdf::stack_svg(&[(svg, view)], 3.0);
+            return Ok(SlideImage {
+                src: crate::pdf::svg_data_url(&svg),
+                width: Some((view.width * 3.0).round() as u32),
+                height: Some((view.height * 3.0).round() as u32),
+            });
         }
         "eps" | "ps" => {
             return Err(

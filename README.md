@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/logo.png" alt="VisuTeX" width="120"></p>
+<p align="center"><img src="docs/logo.svg" alt="VisuTeX" width="120"></p>
 
 <h1 align="center">VisuTeX</h1>
 
@@ -13,7 +13,7 @@ Visuell oder als Code, verlustfrei hin und her. Keine LaTeX-Installation nötig.
 </p>
 
 <p align="center"><a href="#english">English version below</a> · <a href="docs/BEDIENUNG.md">Bedienung</a> ·
-<a href="docs/ARCHITEKTUR.md">Architektur</a> · <a href="docs/ENTWICKLUNG.md">Entwicklung</a></p>
+<a href="docs/ARCHITEKTUR.md">Architektur</a> · <a href="docs/ENTWICKLUNG.md">Entwicklung</a> · <a href="docs/ADDONS.md">Add-ons erstellen</a></p>
 
 <p align="center"><img src="docs/screenshots/hauptansicht.png" alt="VisuTeX: visueller Editor mit Seitenansicht und kompilierter PDF-Vorschau" width="900"></p>
 
@@ -85,7 +85,9 @@ nach dem Herunterladen sofort und auch ganz ohne Internet.
   übertragen, Wiederherstellung nach einem Absturz.
 - Oberfläche auf **Deutsch, Englisch, Französisch, Spanisch, Italienisch, Portugiesisch, Niederländisch und Polnisch**;
   24 Dokumentsprachen mit Silbentrennung, Anführungszeichen und Zahlenformat.
-- **Add-ons** (deklarativ): eigene Präambel, TeX-Dateien, Bausteine im Menüband und Vorlagen.
+- **Add-ons wie bei Office:** eigener Dateityp `.vtxaddon` – Doppelklick installiert nach einer Sicherheitsabfrage.
+  Add-ons bringen Präambel, TeX-Dateien, Bausteine im Menüband mit SVG-Symbolen und Vorlagen mit (deklarativ, ohne
+  Code). Anleitung für Entwickler: [docs/ADDONS.md](docs/ADDONS.md).
 
 <p align="center"><img src="docs/screenshots/schnellzugriff.png" alt="Anpassbare Symbolleiste für den Schnellzugriff" width="760"></p>
 
@@ -136,7 +138,7 @@ npm run installer        # Windows-Installationsprogramm
 ```
 
 Details, Tests und Werkzeuge: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md) · Aufbau: [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md) ·
-Mitwirken: [CONTRIBUTING.md](CONTRIBUTING.md).
+Add-ons erstellen: [docs/ADDONS.md](docs/ADDONS.md) · Mitwirken: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Lizenz
 
@@ -212,7 +214,9 @@ and all packages are built in – VisuTeX works right after downloading, even en
   replace, format painter, recovery after a crash.
 - User interface in **German, English, French, Spanish, Italian, Portuguese, Dutch and Polish**; 24 document languages
   with hyphenation, quotation marks and number format.
-- **Add-ons** (declarative): custom preamble, TeX files, ribbon snippets and templates.
+- **Add-ons like in Office:** dedicated file type `.vtxaddon` – double-click installs after a security prompt.
+  Add-ons provide preamble lines, TeX files, ribbon snippets with SVG icons and templates (declarative, no code).
+  Developer guide (German): [docs/ADDONS.md](docs/ADDONS.md).
 
 <p align="center"><img src="docs/screenshots/schnellzugriff.png" alt="Customisable Quick Access Toolbar" width="760"></p>
 
@@ -263,7 +267,7 @@ npm run installer        # Windows installer
 ```
 
 Details, tests and tools: [docs/ENTWICKLUNG.md](docs/ENTWICKLUNG.md) · structure: [docs/ARCHITEKTUR.md](docs/ARCHITEKTUR.md) ·
-contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
+creating add-ons: [docs/ADDONS.md](docs/ADDONS.md) · contributing: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### License
 

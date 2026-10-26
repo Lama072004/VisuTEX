@@ -1,0 +1,21 @@
+% Beispiel-Add-on für VisuTeX: farbige Hinweis- und Warnboxen.
+% Reines LaTeX (nur xcolor) – läuft mit pdfLaTeX, XeLaTeX und LuaLaTeX.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{hinweisboxen}[2026/10/22 v1.0 Hinweis- und Warnboxen]
+\RequirePackage{xcolor}
+
+\definecolor{hinweisrand}{RGB}{37,99,235}
+\definecolor{hinweisgrund}{RGB}{235,242,255}
+\definecolor{warnrand}{RGB}{217,119,6}
+\definecolor{warngrund}{RGB}{255,247,230}
+
+% \hinweisbox{Randfarbe}{Hintergrund}{Titel}{Text}
+\newcommand{\hinweisbox}[4]{%
+  \par\medskip\noindent
+  \fcolorbox{#1}{#2}{%
+    \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{%
+      \textbf{\color{#1}#3}\quad #4}}%
+  \par\medskip}
+
+\newcommand{\hinweis}[1]{\hinweisbox{hinweisrand}{hinweisgrund}{Hinweis:}{#1}}
+\newcommand{\warnung}[1]{\hinweisbox{warnrand}{warngrund}{Achtung:}{#1}}

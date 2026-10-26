@@ -39,6 +39,29 @@
       "../THIRD_PARTY_NOTICES.md": "licenses/THIRD_PARTY_NOTICES.md",
       "../licenses/GPL-2.0.txt": "licenses/GPL-2.0.txt"
     },
+    "fileAssociations": [
+      {
+        "ext": ["vtxaddon"],
+        "name": "VisuTeX.Addon",
+        "description": "VisuTeX-Add-on",
+        "mimeType": "application/x-visutex-addon",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["visutex"],
+        "name": "VisuTeX.Projekt",
+        "description": "VisuTeX-Projekt",
+        "mimeType": "application/x-visutex-project",
+        "role": "Editor"
+      },
+      {
+        "ext": ["vtxslides"],
+        "name": "VisuTeX.Praesentation",
+        "description": "VisuTeX-Präsentation",
+        "mimeType": "application/x-visutex-slides",
+        "role": "Editor"
+      }
+    ],
     "copyright": "© 2026 Mathias Lampert – MIT (Quellcode), siehe THIRD_PARTY_NOTICES.md",
     "publisher": "Mathias Lampert",
     "license": "MIT AND GPL-2.0-or-later",
@@ -57,10 +80,12 @@
     "linux": {
       "deb": {
         "section": "text",
-        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "fontconfig"]
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0", "fontconfig"],
+        "files": { "/usr/share/mime/packages/visutex.xml": "../packaging/linux/visutex-mime.xml" }
       },
       "rpm": {
-        "depends": ["webkit2gtk4.1", "gtk3", "fontconfig"]
+        "depends": ["webkit2gtk4.1", "gtk3", "fontconfig"],
+        "files": { "/usr/share/mime/packages/visutex.xml": "../packaging/linux/visutex-mime.xml" }
       },
       "appimage": {
         "bundleMediaFramework": false

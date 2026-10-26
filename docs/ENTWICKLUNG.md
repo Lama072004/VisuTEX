@@ -71,7 +71,7 @@ Chrome-DevTools-Protokoll steuern (Skripte ausführen, Screenshots) – so werde
 | Befehl (in `src-tauri`) | Zweck |
 |---|---|
 | `cargo run --features dev-tools --bin build-tex-bundle` | erzeugt `resources/tex-bundle.zip` neu: kompiliert Abdeckungsdokumente (alle Funktionen, Vorlagen, Sprachen, Skizzen-Symbole, Folien) mit dem Tectonic-Standard-Bundle und packt jede gelesene Datei ein. Braucht Internet bzw. den Tectonic-Cache. |
-| `cargo run --features dev-tools --bin build-sketch-symbols` | erzeugt `resources/sketch-symbols.json`: kompiliert jeden Eintrag aus `core/sketch_catalog.rs` mit dem Bundle, sortiert Unbekanntes aus, rendert die Symbole und liest die Anschlüsse aus. **Nach jedem Bundle-Neubau ausführen.** |
+| `cargo run --features dev-tools --bin build-sketch-symbols` | erzeugt `resources/sketch-symbols.json`: kompiliert jeden Eintrag aus `core/sketch_catalog.rs` mit dem Bundle, sortiert Unbekanntes aus, schneidet die Symbole zu, speichert sie als SVG und liest die Anschlüsse aus. **Nach jedem Bundle-Neubau ausführen.** |
 
 Übersetzungen:
 

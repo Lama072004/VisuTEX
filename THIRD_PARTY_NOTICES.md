@@ -53,7 +53,7 @@ unter den Bedingungen der GPL-2.0-or-later weitergegeben werden. Daraus folgt:
 ## 3. Rust-Abhängigkeiten
 
 Rund 780 Crates (inkl. Build-Abhängigkeiten), u. a. Tauri, serde, image, hayro,
-svg2pdf, zip, reqwest. Lizenzen (Stand der Prüfung):
+hayro-svg, svg2pdf, zip, reqwest. Lizenzen (Stand der Prüfung):
 
 - MIT, Apache-2.0 bzw. „MIT OR Apache-2.0“ (große Mehrheit)
 - BSD-2-Clause, BSD-3-Clause, ISC, Zlib, 0BSD, Unlicense, BSL-1.0, CC0-1.0

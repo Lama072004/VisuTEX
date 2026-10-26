@@ -12,6 +12,7 @@ pub mod embedded;
 pub mod files;
 pub mod fonts;
 pub mod images;
+pub mod launch;
 pub mod pdf;
 pub mod prepare;
 pub mod preview;
@@ -458,6 +459,15 @@ async fn setup_uninstall(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Beim Start übergebene Dateien (Doppelklick auf `.vtxaddon`, `.visutex` …) – einmalig.
+#[tauri::command]
+fn startup_files() -> Vec<String> {
+    launch::take()
+        .into_iter()
+        .map(|path| path.display().to_string())
+        .collect()
+}
+
 /// Gespeicherte Datei teilen (Windows: Teilen-Fenster, Linux: E-Mail mit Anhang).
 #[tauri::command]
 async fn share_file(window: tauri::WebviewWindow, path: String) -> Result<String, String> {
@@ -503,30 +513,19 @@ async fn update_install(app: AppHandle, asset: updates::UpdateAsset) -> Result<(
     Ok(())
 }
 
-/// Symbole des Skizzier-Werkzeugs, beim Bauen eingebettet (≈ 0,9 MB) – Rückfall, falls der
-/// Ordner `resources` neben dem Programm fehlt.
+/// Symbole des Skizzier-Werkzeugs (SVG), beim Bauen eingebettet (≈ 0,5 MB). Bewusst keine
+/// Datei neben dem Programm: eine dort liegengebliebene ältere Fassung passte nicht mehr zum Katalog.
 const EMBEDDED_SKETCH_SYMBOLS: &str = include_str!("../resources/sketch-symbols.json");
 
 /// Alle Symbole des Skizzier-Werkzeugs (CircuiTikZ-Bauteile, TikZ-Formen) mit
 /// Vorschaubild und Anschlüssen (aus `resources/sketch-symbols.json`).
 #[tauri::command]
-async fn sketch_catalog(app: AppHandle) -> Result<core::sketch_catalog::Catalog, String> {
+async fn sketch_catalog() -> Result<core::sketch_catalog::Catalog, String> {
     static CATALOG: std::sync::OnceLock<core::sketch_catalog::Catalog> = std::sync::OnceLock::new();
     if let Some(catalog) = CATALOG.get() {
         return Ok(catalog.clone());
     }
-    // Datei im Ordner `resources` (nach `build-sketch-symbols` aktuell); fehlt sie – etwa wenn nur
-    // die EXE kopiert wurde –, die beim Bauen eingebettete Fassung verwenden.
-    let path = resource_path(&app, "resources/sketch-symbols.json").filter(|path| path.is_file());
-    let catalog = blocking(move || {
-        let text = match path {
-            Some(path) => std::fs::read_to_string(&path)
-                .map_err(|error| format!("Symboldatei nicht lesbar: {error}"))?,
-            None => EMBEDDED_SKETCH_SYMBOLS.to_string(),
-        };
-        core::sketch_catalog::build_catalog(&text)
-    })
-    .await?;
+    let catalog = blocking(|| core::sketch_catalog::build_catalog(EMBEDDED_SKETCH_SYMBOLS)).await?;
     Ok(CATALOG.get_or_init(|| catalog).clone())
 }
 
@@ -701,12 +700,10 @@ async fn render_tikz(
         )
         .map_err(|failure| failure.message)?;
         let stored = pdf::load(output.pdf)?;
-        let png = pdf::render_page_png(&stored, 0, 2.5)?;
-        use base64::Engine;
-        Ok(format!(
-            "data:image/png;base64,{}",
-            base64::engine::general_purpose::STANDARD.encode(png)
-        ))
+        // Vektorgrafik (standalone schneidet bereits zu); Größe wie die frühere 2,5-fach-PNG
+        let view = pdf::page_view(&stored, 0).ok_or("Die Vorschau ist leer.")?;
+        let svg = pdf::render_page_svg(&stored, 0)?;
+        Ok(pdf::svg_data_url(&pdf::stack_svg(&[(svg, view)], 2.5)))
     })
     .await
 }
@@ -1248,20 +1245,31 @@ async fn addons_install(
     path: String,
 ) -> Result<core::addon::AddonManifest, String> {
     let dirs = addon_dirs(&app)?;
-    blocking(move || {
-        let path = PathBuf::from(path);
-        if path.is_dir() {
-            dirs.install_folder(&path)
-        } else if path
-            .file_name()
-            .is_some_and(|name| name == addons::MANIFEST)
-        {
-            dirs.install_folder(&parent_dir(&path)?)
-        } else {
-            dirs.install_zip(&path)
-        }
-    })
-    .await
+    blocking(move || dirs.install(Path::new(&path))).await
+}
+
+/// Add-on-Datei, ZIP oder Ordner prüfen, ohne zu installieren (Sicherheitsabfrage).
+#[tauri::command]
+async fn addons_inspect(app: AppHandle, path: String) -> Result<addons::AddonPreview, String> {
+    let dirs = addon_dirs(&app)?;
+    blocking(move || dirs.inspect(Path::new(&path))).await
+}
+
+/// Ordner im Add-on-Ordner, die nicht geladen werden können (Hinweis für Ersteller).
+#[tauri::command]
+async fn addons_problems(app: AppHandle) -> Result<Vec<addons::AddonProblem>, String> {
+    let dirs = addon_dirs(&app)?;
+    blocking(move || Ok(dirs.problems())).await
+}
+
+/// Add-on-Ordner im Dateimanager öffnen (eigene Add-ons dort entwickeln oder hineinkopieren).
+#[tauri::command]
+async fn addons_open_folder(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let dirs = addon_dirs(&app)?;
+    app.opener()
+        .open_path(dirs.user.display().to_string(), None::<&str>)
+        .map_err(|error| format!("Add-on-Ordner konnte nicht geöffnet werden: {error}"))
 }
 
 #[tauri::command]
@@ -1298,6 +1306,12 @@ async fn addons_save(
         dirs.save_custom(manifest, &files)
     })
     .await
+}
+
+/// Gewählte SVG-Datei prüfen und als Vorschau liefern (Add-on-Editor).
+#[tauri::command]
+async fn addons_icon_preview(path: String) -> Result<String, String> {
+    blocking(move || addons::icon_data_url(Path::new(&path))).await
 }
 
 #[tauri::command]
@@ -1337,6 +1351,8 @@ pub fn run() {
 /// Start mit den in die EXE eingebetteten Dateien (siehe `main.rs`).
 pub fn run_with(assets: embedded::EmbeddedAssets) {
     embedded::install(assets);
+    // Per Doppelklick übergebene Dateien merken (die Oberfläche fragt sie nach dem Start ab)
+    launch::remember(std::env::args_os());
     // Reste eines Updates bzw. einer Installation (`*.old`) aufräumen
     setup::cleanup_leftovers();
     // Fontconfig für die eingebaute TeX-Engine einrichten (vor allen weiteren Threads).
@@ -1381,6 +1397,7 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             update_check,
             update_install,
             share_file,
+            startup_files,
             analyze_document,
             check_resources,
             compile_document,
@@ -1409,6 +1426,10 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             addons_set_enabled,
             addons_save,
             addons_export,
+            addons_icon_preview,
+            addons_inspect,
+            addons_problems,
+            addons_open_folder,
             templates_list,
             set_tex_options,
             system_check,

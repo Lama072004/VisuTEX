@@ -30,7 +30,10 @@ Die Oberfläche ruft Rust ausschließlich über typisierte Befehle in `src/api.t
 3. **Import** (`core/import.rs`): beliebiges LaTeX → JSON. Unbekanntes bleibt als Roh-LaTeX-Block erhalten.
 4. **Quelltreue**: Importierte Blöcke merken sich ihren Originalcode (`sourceLatex`) und einen Fingerabdruck (`sourceKey`). Unveränderte Blöcke werden **zeichengenau** wieder ausgegeben → verlustfreier Round-Trip Code ⇄ Visuell.
 5. **Kompilieren** (`compile.rs`): Tectonic (XeTeX) mit dem mitgelieferten TeX-Bundle, auch bei Fehlern wird ein PDF erzeugt; `prepare.rs` passt Fremddokumente zeilengenau an (biber→BibTeX, pdfx, fehlende/defekte Bilder → Platzhalter).
-6. **Vorschau** (`pdf.rs`): PDF-Seiten werden in Rust (hayro) als PNG gerendert.
+6. **Vorschau** (`pdf.rs`, `preview.rs`): PDF-Seiten werden in Rust mit hayro verarbeitet. Vorschauen im Editor
+   (LaTeX-Blöcke, Titelseite, TikZ, PDF-Grafiken, Folienbilder) sind **Vektorgrafiken (SVG, `hayro-svg`)** – auf den
+   Inhalt zugeschnitten, in jeder Vergrößerung scharf. Nur der PDF-Vorschaubereich rastert Seiten (PNG), weil dort ganze
+   Seiten schnell erscheinen müssen.
 
 ## Datenfluss Präsentation
 
@@ -40,8 +43,20 @@ Text in Textfeldern ist Tiptap-JSON und wird mit demselben Exporter übersetzt w
 ## Datenfluss Skizze
 
 `src/sketch/SketchPad.tsx` (Rastermodell) → `core/sketch.rs` → TikZ/CircuiTikZ-Code. Das Modell steht als Kommentar in der
-ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. Symbole und Anschlüsse aller Bauteile kommen aus
-`resources/sketch-symbols.json` (erzeugt aus `core/sketch_catalog.rs`, siehe [Entwicklung](ENTWICKLUNG.md#werkzeuge)).
+ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. Symbole (SVG) und Anschlüsse aller Bauteile kommen
+aus `resources/sketch-symbols.json` (erzeugt aus `core/sketch_catalog.rs`, siehe [Entwicklung](ENTWICKLUNG.md#werkzeuge),
+in die EXE eingebettet).
+
+## Add-ons
+
+Deklarativ (`addon.json`, kein Code), verteilt als Datei **`.vtxaddon`** (ZIP). `core/addon.rs` prüft das Manifest und
+SVG-Symbole; `addons.rs` prüft Pakete ohne Installation (`inspect` → Sicherheitsabfrage `AddonInstallDialog.tsx`),
+installiert (Datei/ZIP/Ordner), schaltet ein/aus, exportiert, meldet fehlerhafte Ordner und liefert Präambelzeilen,
+Suchpfade und Symbole (als data:-URL) an Kompilieren, Export und Oberfläche (`AddonManager.tsx`, Reiter *Add-ons*,
+*Einfügen → Meine Add-ons*). Doppelklick: Die Dateitypen `.vtxaddon`, `.visutex`, `.vtxslides` registrieren
+Setup.exe/MSI/deb/rpm (`tauri.conf.json` → `fileAssociations`, `packaging/linux/visutex-mime.xml`) bzw. die
+App-eigene Einrichtung (`setup.rs`); `launch.rs` merkt sich die beim Start übergebenen Dateien, die Oberfläche fragt
+sie einmalig ab (`startup_files`). Anleitung für Entwickler: [ADDONS.md](ADDONS.md), Beispiel in `docs/addon-beispiel/`.
 
 ## Dateiformate
 
@@ -50,6 +65,7 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 | `.visutex` | Projekt (JSON, Format v2): Einstellungen, Dokument-JSON, ggf. eigene Präambel, letzte Ansicht |
 | `.tex` | Beliebiges LaTeX; beim Speichern bleibt die Datei LaTeX (eingebundene Teildateien werden zurückgeschrieben) |
 | `.vtxslides` | Präsentation (JSON): Folien, Elemente, Design, Raster; Bilder eingebettet |
+| `.vtxaddon` | Add-on (ZIP mit `addon.json`, TeX-Dateien, SVG-Symbolen, Vorlagen) – siehe [ADDONS.md](ADDONS.md) |
 | `.bib` | Literatur (BibTeX), im Projektordner |
 
 ## Ordnerstruktur
@@ -87,7 +103,8 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 │   ├── src/files.rs, images.rs, fonts.rs, system.rs, zotero.rs, addons.rs, templates.rs
 │   ├── src/embedded.rs           eingebettetes TeX-Bundle/Add-ons beim Start entpacken
 │   ├── src/share.rs              Teilen der gespeicherten Datei (Windows-Teilen-Fenster, Linux: xdg-email)
-│   ├── src/setup.rs, updates.rs  Einrichtung (Installationsort, Verknüpfungen, Autostart, Deinstallation),
+│   ├── src/launch.rs             per Doppelklick übergebene Dateien (.vtxaddon, .visutex, .vtxslides, .tex)
+│   ├── src/setup.rs, updates.rs  Einrichtung (Installationsort, Verknüpfungen, Autostart, Dateitypen, Deinstallation),
 │   │                             Update-Suche und -Installation über GitHub-Releases
 │   ├── src/bin/                  Entwicklerwerkzeuge (TeX-Bundle, Skizzen-Symbole)
 │   ├── resources/                tex-bundle.zip, sketch-symbols.json, mitgelieferte Add-ons (in die EXE eingebettet),
@@ -96,7 +113,7 @@ ersten Codezeile, damit eine eingefügte Skizze wieder bearbeitet werden kann. S
 ├── tests/                        Node-Tests + Fixtures (Volltest-Dokument, Fremddokumente, Folien)
 ├── scripts/                      setup.mjs (Einrichtung), i18n-*.mjs (Übersetzungen), check-latex-engines.sh, portable.mjs (Testversion)
 ├── docs/                         diese Dokumentation
-├── packaging/                    Arch-Linux-PKGBUILD
+├── packaging/                    Arch-Linux-PKGBUILD, linux/visutex-mime.xml (eigene Dateitypen für deb/rpm)
 └── .github/workflows/build.yml   CI: Windows + Linux, Tests, Installation auf mehreren Distributionen
 ```
 

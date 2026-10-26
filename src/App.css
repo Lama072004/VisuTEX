@@ -1018,6 +1018,34 @@ input[type="color"] {
   height: 22px;
   line-height: 22px;
 }
+/* SVG-Symbole von Add-ons: einfarbige (currentColor) als Maske in Textfarbe, sonst als Bild */
+.addon-icon.svg,
+.addon-list-icon.svg {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+}
+.svg.mask {
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+}
+.ribbon-button:disabled .addon-icon.svg {
+  opacity: 0.45;
+}
+.menu-item .addon-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 12px;
+  line-height: 16px;
+  text-align: center;
+  flex: none;
+}
 
 /* ---------------------------------------------------------------- Arbeitsbereich */
 
@@ -3286,6 +3314,11 @@ kbd {
   margin-bottom: 20px;
   max-width: 1000px;
 }
+:root[data-theme="dark"] .recovery-banner {
+  border-color: #8a6a24;
+  background: #3a3220;
+  color: #f3dfae;
+}
 .recovery-banner div {
   flex: 1;
 }
@@ -3455,6 +3488,28 @@ kbd {
 }
 .snippet-row .span-all {
   grid-column: 1 / -1;
+}
+.icon-picker {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.icon-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.icon-preview .addon-icon:not(.svg) {
+  font-size: 15px;
+}
+.icon-picker .icon-text {
+  width: 64px;
 }
 
 /* Systemprüfung */
@@ -3701,6 +3756,119 @@ kbd {
 }
 .share-footer {
   flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------- Add-on installieren */
+
+.addon-install-dialog {
+  width: min(620px, calc(100vw - 32px));
+}
+.addon-install-dialog h2,
+.addon-install-trust {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.addon-install-dialog p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.addon-install-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.addon-install-card p {
+  margin: 4px 0 0;
+}
+.icon-preview.large {
+  width: 44px;
+  height: 44px;
+  flex: none;
+}
+.icon-preview.large .addon-list-icon.svg {
+  width: 28px;
+  height: 28px;
+}
+.addon-install-heading {
+  font-weight: 600;
+}
+.addon-install-contents {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+.addon-install-contents code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.addon-install-ribbon {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 2px 0 4px;
+}
+.addon-install-ribbon > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.addon-install-ribbon .addon-icon.svg {
+  width: 16px;
+  height: 16px;
+}
+.addon-install-preamble {
+  margin: 4px 0;
+  padding: 6px 8px;
+  max-height: 140px;
+  overflow: auto;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.addon-install-trust {
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.addon-install-trust svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--accent);
+}
+.addon-problems {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.addon-problems li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-left: 3px solid var(--danger);
+  background: rgba(209, 36, 47, 0.08);
+  border-radius: 4px;
+  font-size: 13px;
+}
+.addon-problems li svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--danger);
+}
+.addon-problems code {
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 .share-secondary {
   display: flex;
