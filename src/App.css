@@ -1736,6 +1736,14 @@ kbd {
   flex: 1;
   min-width: 160px;
 }
+/* „Löschen“ in den Bearbeitungsfeldern (Zeichnung, Formel) – rechts abgesetzt */
+.node-edit-row .node-delete {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--danger);
+}
 .node-hint {
   font-family: var(--ui-font);
   font-size: 11px;

@@ -78,6 +78,13 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
 
   Mehrzeilige Formeln (`align`, `gather` …) öffnen im LaTeX-Modus (mit Live-Vorschau). Eine Formel wird nur
   umgeschrieben, wenn man sie tatsächlich ändert; eine geleerte Formel wird entfernt. Esc kehrt in den Text zurück.
+- **Markieren und löschen (wie in Word):** Was mit der Maus (Ziehen, Umschalt+Klick) oder der Tastatur (Umschalt+Pfeile,
+  Strg+A) markiert ist, löschen `Entf`/`Rücktaste` vollständig – Text, Tabellen, Bilder, Zeichnungen (TikZ), Formeln,
+  LaTeX-Blöcke, Verzeichnisse, Umbrüche, Kommentare usw. Innerhalb einer Markierung öffnet sich kein Bearbeitungsfeld.
+  Ein **einzelner Block** wird per Klick ausgewählt; `Entf`/`Rücktaste` löschen ihn, ebenso der Knopf *Löschen* im
+  Bearbeitungsfeld (Zeichnung, Formel). Bearbeiten: Doppelklick, `Eingabetaste`/`F2` oder einfach lostippen (bei
+  Zeichnungen landet der Text im Code); `Esc` kehrt zum ausgewählten Block zurück. Formeln öffnen per Klick sofort den
+  Formel-Editor; per Tastatur erreicht (Pfeiltasten, nach dem Löschen eines Nachbarblocks) sind sie nur markiert.
 - **Code-Ansicht** (`LaTeX` in der Titelleiste): das vollständige, portable LaTeX-Dokument. Änderungen dort werden beim
   Zurückschalten übernommen; unveränderte Teile bleiben zeichengenau erhalten.
 - **Kompilieren:** `F5` bzw. *Ansicht → Kompilieren*. Die eingebaute Engine braucht keine LaTeX-Installation; Fehler stehen

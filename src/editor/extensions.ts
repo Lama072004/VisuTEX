@@ -4,6 +4,7 @@
  */
 import type { AnyExtension } from "@tiptap/core";
 import { Extension } from "@tiptap/core";
+import { NodeSelection, Plugin } from "@tiptap/pm/state";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import {
   AcronymNode,
@@ -59,6 +60,46 @@ import { LayoutParagraphs } from "./layoutParagraphs";
 import { SearchReplace } from "./search";
 import { TableCaptions } from "./tableCaptions";
 
+/**
+ * Ausgewählte Blöcke wie Objekte in Word: Entf/Rücktaste löschen sie (ProseMirror-Standard,
+ * der Fokus bleibt im Dokument). Eingabetaste bzw. F2 öffnet die Bearbeitung (Element mit
+ * `data-edit-focus` im Block: Codefeld fokussieren, sonst anklicken). Lostippen schreibt in das
+ * Codefeld bzw. öffnet die Bearbeitung – statt den Block durch den Buchstaben zu ersetzen.
+ */
+const ObjectEditKeys = Extension.create({
+  name: "objectEditKeys",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        props: {
+          handleKeyDown(view, event) {
+            const selection = view.state.selection;
+            if (!(selection instanceof NodeSelection) || event.ctrlKey || event.metaKey || event.altKey) return false;
+            const dom = view.nodeDOM(selection.from);
+            const target = dom instanceof HTMLElement ? dom.querySelector<HTMLElement>("[data-edit-focus]") : null;
+            if (!target) return false;
+            const activate = () => (target instanceof HTMLTextAreaElement ? target.focus() : target.click());
+            if (event.key === "Enter" || event.key === "F2") {
+              activate();
+              return true;
+            }
+            if (event.key.length === 1) {
+              activate();
+              if (target instanceof HTMLTextAreaElement) {
+                target.setSelectionRange(target.value.length, target.value.length);
+                // als echte Eingabe einfügen (löst das React-onChange aus)
+                document.execCommand("insertText", false, event.key);
+              }
+              return true;
+            }
+            return false;
+          },
+        },
+      }),
+    ];
+  },
+});
+
 /** Tastenkürzel, die nicht von StarterKit kommen. */
 const ExtraKeys = Extension.create({
   name: "visutexKeys",
@@ -104,6 +145,7 @@ export function appExtensions(): AnyExtension[] {
     FormattingMarks,
     CommentLayout,
     LayoutParagraphs,
+    ObjectEditKeys,
     ExtraKeys,
   ];
 }

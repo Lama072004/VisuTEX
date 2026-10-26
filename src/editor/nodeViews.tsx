@@ -4,8 +4,10 @@
  */
 import { NodeViewContent, NodeViewWrapper } from "@tiptap/react";
 import type { ReactNodeViewProps } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import { Trash2 } from "lucide-react";
 import { api, errorText, fileUrl, projectFileUrl } from "../api";
 import type { BlockPreview, ResolvedImage } from "../api";
 import { useT } from "../i18n";
@@ -80,6 +82,25 @@ function stop(event: { stopPropagation: () => void }) {
   event.stopPropagation();
 }
 
+/**
+ * Ist genau dieser Block angeklickt (NodeSelection)? Tiptap meldet `selected` auch, wenn der
+ * Block nur innerhalb einer größeren Markierung liegt. Bearbeitungsfelder (die teils den Fokus
+ * holen) erscheinen nur im ersten Fall – sonst landeten Entf/Rücktaste im Feld und die
+ * Markierung ließe sich nicht löschen.
+ */
+function isSoleSelection({ selected, editor, getPos }: Pick<ReactNodeViewProps, "selected" | "editor" | "getPos">): boolean {
+  if (!selected) return false;
+  const pos = typeof getPos === "function" ? getPos() : undefined;
+  const selection = editor.state.selection;
+  return selection instanceof NodeSelection && selection.from === pos;
+}
+
+/** Block wieder als Ganzes auswählen und den Fokus ins Dokument geben (Esc im Bearbeitungsfeld). */
+function reselect(editor: ReactNodeViewProps["editor"], getPos: ReactNodeViewProps["getPos"]) {
+  const pos = typeof getPos === "function" ? getPos() : undefined;
+  if (typeof pos === "number") editor.chain().focus().setNodeSelection(pos).run();
+}
+
 /** Bearbeitungsbereich innerhalb einer NodeView (Ereignisse nicht an ProseMirror weitergeben). */
 function EditPanel({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -137,6 +158,20 @@ function leaveMath(editor: ReactNodeViewProps["editor"], getPos: ReactNodeViewPr
   if (typeof pos === "number") editor.chain().focus().setTextSelection(pos + size).run();
 }
 
+/**
+ * Formel bearbeiten? Angeklickt (bzw. Eingabetaste/F2) oder neu und leer → Formel-Editor mit
+ * Fokus. Per Tastatur ausgewählt (Rücktaste dahinter, Entf davor, Pfeiltasten, nach dem Löschen
+ * eines Nachbarblocks) → nur markiert wie ein Objekt in Word: Entf/Rücktaste löschen sie dann.
+ */
+function useFormulaEditing(props: Pick<ReactNodeViewProps, "selected" | "editor" | "getPos">, latex: string) {
+  const sole = isSoleSelection(props);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!sole) setOpen(false);
+  }, [sole]);
+  return { editing: sole && (open || !latex.trim()), open: () => setOpen(true) };
+}
+
 export function MathBlockView({ node, updateAttributes, selected, deleteNode, editor, getPos }: ReactNodeViewProps) {
   const t = useT();
   const latex = String(node.attrs.latex ?? "");
@@ -144,12 +179,18 @@ export function MathBlockView({ node, updateAttributes, selected, deleteNode, ed
   const numbered = Boolean(node.attrs.numbered) && node.attrs.numbered !== "false";
   const label = String(node.attrs.label ?? "");
   const preview = useMemo(() => renderKatex(latex, true, environment), [latex, environment]);
+  const { editing, open } = useFormulaEditing({ selected, editor, getPos }, latex);
 
   return (
-    <NodeViewWrapper className={`math-block${selected ? " is-selected is-editing" : ""}`} data-numbered={numbered ? "true" : undefined} data-label={label || undefined}>
-      {!selected && <div className="math-rendered" dangerouslySetInnerHTML={{ __html: preview }} />}
+    <NodeViewWrapper
+      className={`math-block${selected ? " is-selected" : ""}${editing ? " is-editing" : ""}`}
+      data-numbered={numbered ? "true" : undefined}
+      data-label={label || undefined}
+      onMouseDown={open}
+    >
+      {!editing && <div className="math-rendered" data-edit-focus="" onClick={open} dangerouslySetInnerHTML={{ __html: preview }} />}
       {numbered && <span className="equation-number" aria-hidden="true" />}
-      {selected && (
+      {editing && (
         <EditPanel className="math-panel">
           <MathEditPanel
             latex={latex}
@@ -184,6 +225,9 @@ export function MathBlockView({ node, updateAttributes, selected, deleteNode, ed
                   />
                 </label>
               )}
+              <button type="button" className="small node-delete" onClick={deleteNode} title={t("Formel löschen")}>
+                <Trash2 size={13} /> {t("Löschen")}
+              </button>
             </div>
           </MathEditPanel>
         </EditPanel>
@@ -195,10 +239,11 @@ export function MathBlockView({ node, updateAttributes, selected, deleteNode, ed
 export function InlineMathView({ node, updateAttributes, selected, deleteNode, editor, getPos }: ReactNodeViewProps) {
   const latex = String(node.attrs.latex ?? "");
   const html = useMemo(() => renderKatex(latex, false), [latex]);
+  const { editing, open } = useFormulaEditing({ selected, editor, getPos }, latex);
   return (
-    <NodeViewWrapper as="span" className={`inline-math${selected ? " is-selected" : ""}`}>
-      <span dangerouslySetInnerHTML={{ __html: html }} />
-      {selected && (
+    <NodeViewWrapper as="span" className={`inline-math${selected ? " is-selected" : ""}`} onMouseDown={open}>
+      <span data-edit-focus="" onClick={open} dangerouslySetInnerHTML={{ __html: html }} />
+      {editing && (
         <span className="inline-math-editor" contentEditable={false} onMouseDown={stop} onKeyDown={stop} onPaste={stop} onCopy={stop} onCut={stop}>
           <MathEditPanel
             latex={latex}
@@ -219,7 +264,7 @@ export function InlineMathView({ node, updateAttributes, selected, deleteNode, e
 /** Meta-Kennzeichen für Transaktionen, die nur Laufzeitdaten ändern (keine Dokumentänderung im Sinne von LaTeX). */
 export const RUNTIME_META = "visutex:runtime";
 
-export function TikzBlockView({ node, updateAttributes, selected, editor, getPos }: ReactNodeViewProps) {
+export function TikzBlockView({ node, updateAttributes, selected, deleteNode, editor, getPos }: ReactNodeViewProps) {
   const t = useT();
   const code = String(node.attrs.code ?? "");
   const environment = String(node.attrs.environment || "tikzpicture");
@@ -241,6 +286,7 @@ export function TikzBlockView({ node, updateAttributes, selected, editor, getPos
   /** Vollständiger Code zum Entwurf (von Hand geänderte Skizze verliert ihr Modell). */
   const fullCode = (text: string) => (text === body ? code : text);
   const editing = draft !== body;
+  const sole = isSoleSelection({ selected, editor, getPos });
 
   const render = async (source = fullCode(draft)) => {
     setBusy(true);
@@ -279,7 +325,11 @@ export function TikzBlockView({ node, updateAttributes, selected, editor, getPos
 
   return (
     <NodeViewWrapper className={`tikz-block${selected ? " is-selected" : ""}`} data-label={label || undefined} data-caption={caption ? "true" : undefined}>
-      <div className="tikz-preview-frame">
+      <div
+        className="tikz-preview-frame"
+        title={t("Klicken: auswählen (Entf löscht) · Doppelklick, Eingabetaste oder Lostippen: Code bearbeiten")}
+        onDoubleClick={() => textareaRef.current?.focus()}
+      >
         {preview ? (
           <img className={`tikz-preview${upToDate ? "" : " is-stale"}`} src={preview} alt={caption || t("TikZ-Zeichnung")} draggable={false} />
         ) : (
@@ -288,18 +338,25 @@ export function TikzBlockView({ node, updateAttributes, selected, editor, getPos
         {busy && preview && <span className="tikz-busy">{t("Aktualisiere …")}</span>}
       </div>
       {caption && <Caption text={caption} latex={node.attrs.captionLatex === true} kind="figure" />}
-      {error && !selected && <div className="node-error">{error.split("\n")[0]}</div>}
-      {selected && (
+      {error && !sole && <div className="node-error">{error.split("\n")[0]}</div>}
+      {sole && (
         <EditPanel>
+          {/* Kein autoFocus: angeklickt bleibt der Fokus im Dokument, damit Entf/Rücktaste den Block löschen */}
           <textarea
             ref={textareaRef}
             className="code-input"
             value={draft}
             spellCheck={false}
-            autoFocus
+            data-edit-focus=""
             aria-label={t("TikZ-Code")}
             onChange={(event) => setDraft(event.currentTarget.value)}
-            onBlur={() => editing && updateAttributes({ code: draft })}
+            onBlur={() => editing && updateAttributes({ code: fullCode(draft) })}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              // Esc: übernehmen und zurück zum ausgewählten Block
+              if (editing) updateAttributes({ code: fullCode(draft) });
+              reselect(editor, getPos);
+            }}
           />
           {sketchHeader && editing && <div className="node-hint">{t("Von Hand geänderte Skizzen lassen sich danach nicht mehr im Skizzier-Werkzeug bearbeiten.")}</div>}
           <div className="node-edit-row">
@@ -336,6 +393,9 @@ export function TikzBlockView({ node, updateAttributes, selected, editor, getPos
                 {t("In Skizze bearbeiten")}
               </button>
             )}
+            <button type="button" className="node-delete" onClick={deleteNode} title={t("Zeichnung löschen")}>
+              <Trash2 size={14} /> {t("Löschen")}
+            </button>
           </div>
           {error && <pre className="node-error">{error}</pre>}
         </EditPanel>
@@ -444,7 +504,7 @@ function SubfigureCell({ item, letter, percent }: { item: SubfigureItem; letter:
 }
 
 /** Mehrere Bilder nebeneinander (subcaption) – Bearbeitung direkt am Block. */
-export function SubfiguresView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+export function SubfiguresView({ node, updateAttributes, selected, editor, getPos }: ReactNodeViewProps) {
   const t = useT();
   const items = (Array.isArray(node.attrs.items) ? node.attrs.items : []) as SubfigureItem[];
   const caption = String(node.attrs.caption ?? "");
@@ -483,7 +543,7 @@ export function SubfiguresView({ node, updateAttributes, selected }: ReactNodeVi
         {items.length === 0 && <div className="image-placeholder">{t("Keine Bilder – „Bild hinzufügen“ wählen")}</div>}
       </div>
       {caption && <Caption text={caption} latex={node.attrs.captionLatex === true} kind="figure" />}
-      {selected && (
+      {isSoleSelection({ selected, editor, getPos }) && (
         <EditPanel className="subfigure-editor">
           {items.map((item, index) => (
             <div className="node-edit-row" key={index}>
@@ -570,7 +630,7 @@ function TitleField({ field, value, onChange, className }: { field: TitlePageFie
   );
 }
 
-export function TitlePageView({ node, updateAttributes, selected }: ReactNodeViewProps) {
+export function TitlePageView({ node, updateAttributes, selected, editor, getPos }: ReactNodeViewProps) {
   const t = useT();
   const root = useRuntime((runtime) => runtime.projectRoot);
   const value = (field: TitlePageField) => String(node.attrs[field] ?? "");
@@ -583,7 +643,7 @@ export function TitlePageView({ node, updateAttributes, selected }: ReactNodeVie
       <div className="title-page-badge">{t("Titelseite")}</div>
       <div className="title-page-logo">
         {logo ? <img src={projectFileUrl(root, logo)} alt="" onError={(event) => (event.currentTarget.style.display = "none")} /> : null}
-        {selected && field("logoPath", "small")}
+        {isSoleSelection({ selected, editor, getPos }) && field("logoPath", "small")}
       </div>
       {/* Reihenfolge und Abstände wie im Export (Layout einer Abschlussarbeit, linksbündig) */}
       {field("title", "huge")}
@@ -701,7 +761,7 @@ const directoryTitles: Record<string, string> = {
   bibliography: "Literaturverzeichnis",
 };
 
-export function DirectoryView({ node, editor, selected, updateAttributes }: ReactNodeViewProps) {
+export function DirectoryView({ node, editor, selected, updateAttributes, getPos }: ReactNodeViewProps) {
   const t = useT();
   const kind = String(node.attrs.kind || "contents");
   const entries = useDocumentEntries(editor, kind);
@@ -712,7 +772,7 @@ export function DirectoryView({ node, editor, selected, updateAttributes }: Reac
   return (
     <NodeViewWrapper className={`directory-block directory-${kind}${selected ? " is-selected" : ""}`} contentEditable={false}>
       <div className="directory-title">{title ?? t(directoryTitles[kind] ?? kind)}</div>
-      {selected && kind !== "acronyms" && (
+      {isSoleSelection({ selected, editor, getPos }) && kind !== "acronyms" && (
         <EditPanel>
           <div className="node-edit-row">
             <label className="checkbox">
@@ -942,7 +1002,7 @@ export function RawLatexBlockView({ node, updateAttributes, selected, deleteNode
     >
       <div className="raw-latex-label" contentEditable={false}>
         <span>LaTeX</span>
-        <button type="button" className="raw-latex-toggle" onMouseDown={stop} onClick={() => (editing ? finish() : setEditing(true))}>
+        <button type="button" className="raw-latex-toggle" data-edit-focus="" onMouseDown={stop} onClick={() => (editing ? finish() : setEditing(true))}>
           {editing ? t("Vorschau") : t("Code bearbeiten")}
         </button>
       </div>
