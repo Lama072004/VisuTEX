@@ -35,13 +35,14 @@ Kompilieren, Dateien und Zotero gibt es nur in der Desktop-App.
 | Befehl | Was |
 |---|---|
 | `npm run typecheck` | TypeScript-Prüfung |
-| `npm test` | Node-Tests: Editor-Schema, Suche, Tastenkürzel, Folienmodell |
+| `npm test` | Node-Tests: Editor-Schema, Suche, Tastenkürzel, Folienmodell, Markierung, PDF ↔ Block-Zuordnung |
 | `npm run i18n` | Übersetzungen: fehlende/ungenutzte Texte je Sprache |
 | `cd src-tauri && cargo fmt --check` | Formatierung |
-| `cargo test --lib` | Unit-Tests des Rust-Kerns |
+| `cargo test --lib` | Unit-Tests des Rust-Kerns (u. a. Abgabe-Check, SyncTeX, Diagramme, Vergleich, Versionsverlauf, DOI/ISBN-Erkennung) |
+| `cargo test --lib references -- --ignored` | echte Abfrage per DOI und ISBN (braucht Internet) |
 | `cargo test --test core_roundtrip` | Volltest-Dokument: Export → Import → Export |
 | `cargo test --test foreign_documents` | Fremddokumente (`tests/fixtures/fremd`, optional private `Vorlagen_Test_TEX/`): Round-Trip, Export = Original |
-| `cargo test --test compile_pipeline -- --ignored` | echtes Kompilieren mit dem TeX-Bundle: Volltest-Dokument, TikZ, Fehlermeldungen, Folien, **alle 24 Dokumentsprachen** |
+| `cargo test --test compile_pipeline -- --ignored` | echtes Kompilieren mit dem TeX-Bundle: Volltest-Dokument, TikZ, Fehlermeldungen, Folien, **alle 24 Dokumentsprachen**, SyncTeX (Block ⇄ PDF), alle Diagrammarten (Bilder in `target/visutex-charts-pdf/`) |
 | `cargo test --test foreign_documents -- --ignored` | alle Fremddokumente kompilieren |
 | `scripts/check-latex-engines.sh` | erzeugtes LaTeX mit pdfLaTeX, XeLaTeX, LuaLaTeX (braucht TeX Live) |
 

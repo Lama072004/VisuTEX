@@ -53,8 +53,9 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
 
 ## Dokument
 
-- **Menüband:** Start (Schrift, Absatz, Formatvorlagen), Einfügen (Tabellen, Bilder, Formeln, Skizzen, Querverweise,
-  Fußnoten, Umgebungen …), Layout (Seite, Ränder, Spalten, Sprache), Referenzen (Zitate, Verzeichnisse), Ansicht.
+- **Menüband:** Start (Schrift, Absatz, Formatvorlagen), Einfügen (Tabellen, Bilder, Formeln, Skizzen, Diagramme,
+  Querverweise, Fußnoten, Umgebungen …), Layout (Seite, Ränder, Spalten, Sprache), Referenzen (Zitate, Verzeichnisse),
+  Überprüfen (Abgabe-Check, Versionsverlauf, Vergleichen), Ansicht.
 - **Schnellzugriff** (Titelleiste links, wie in Office): Speichern, Rückgängig, Wiederholen und beliebige weitere Befehle.
   Das kleine **▾** daneben blendet häufige Befehle ein/aus; *Weitere Befehle …* bzw. *Datei → Optionen →
   Symbolleiste für den Schnellzugriff* bietet alle Befehle zum Hinzufügen, Entfernen und Umsortieren (höchstens 16).
@@ -90,6 +91,10 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   Zurückschalten übernommen; unveränderte Teile bleiben zeichengenau erhalten.
 - **Kompilieren:** `F5` bzw. *Ansicht → Kompilieren*. Die eingebaute Engine braucht keine LaTeX-Installation; Fehler stehen
   mit Zeilennummer in der PDF-Vorschau, das PDF entsteht trotzdem.
+- **PDF ↔ Dokument (SyncTeX):** **Doppelklick ins PDF** springt an die passende Stelle im Dokument (visuell: der Absatz
+  blinkt kurz auf; Code-Ansicht: die Zeile). Umgekehrt zeigt *Ansicht → Im PDF zeigen* bzw. `Strg+Alt+J` (auch der
+  Fadenkreuz-Knopf in der PDF-Vorschau) die Cursorstelle im PDF mit einer Markierung. Nach Änderungen gilt die Zuordnung
+  des letzten Kompilierens – bei Abweichungen neu kompilieren (`F5`).
 - **Lange Inhalte in der Seitenansicht:** Absätze und Listen werden wie in LaTeX auf die nächste Seite umbrochen.
   Tabellen bleiben standardmäßig zusammen (Gleitumgebung); ist eine Tabelle höher als eine Seite, wird sie rot markiert –
   dann *Tabelle → „Über Seiten umbrechen“* aktivieren (`longtable`: geht auf der nächsten Seite weiter, Kopfzeile wird
@@ -124,6 +129,11 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   „Anführungszeichen“; deutsche Vorlagen verwenden ihn automatisch, und beim Wechsel der Dokumentsprache schaltet VisuTeX
   zwischen IEEE und IEEE (deutsch) um. Die Stildatei `visutex-ieee-de.bst` wird beim LaTeX-Export neben das Dokument
   gelegt (kompiliert damit auch in TeX Live, MiKTeX und Overleaf).
+- **Literatur per DOI/ISBN:** *Referenzen → Per DOI/ISBN …* (bzw. Reiter *DOI / ISBN* im Zitat-Dialog) – DOI
+  (`10.1038/nature14539` oder als Link `https://doi.org/…`) bzw. ISBN eines Buchs eingeben, *Suchen*. VisuTeX holt die
+  Literaturangabe (DOI über doi.org, ISBN über OpenLibrary), zeigt Titel, Autoren, Jahr und das BibTeX und vergibt einen
+  lesbaren Schlüssel (`lecun2015`, bei Doppelungen `lecun2015a`). *Zur Literaturdatei hinzufügen* schreibt den Eintrag
+  in die `.bib`-Datei und wählt ihn zum Zitieren aus. Braucht Internet – nur diese eine Anfrage, nur auf Knopfdruck.
 - **Fremde LaTeX-Projekte** (`.tex`, auch mit `\input`/`\include`, Bildern in Unterordnern, eigener Präambel) lassen sich
   öffnen, visuell bearbeiten und wieder als LaTeX speichern.
 
@@ -149,6 +159,64 @@ VisuTeX hat zwei Arbeitsbereiche, die jederzeit gewechselt werden können:
   `Strg++`/`Strg+-`/`Strg+0` Zoom · `Enter` beendet Linienzug/Vieleck · `Esc` bricht ab bzw. hebt die Auswahl auf ·
   `L`/`T` Linie/Text. Alt beim Ziehen = halbe Rasterschritte.
 - „An Cursorposition einfügen“ setzt den Code ins Dokument; „In Skizze bearbeiten“ an einer eingefügten Skizze öffnet sie wieder.
+
+## Diagramme aus Daten
+
+*Einfügen → Diagramm* (wie „Diagramm einfügen“ in Word) – das Diagramm entsteht als Vektorgrafik mit `pgfplots`
+(mitgeliefert) und kompiliert auch in TeX Live, MiKTeX und Overleaf.
+
+- **Diagrammart:** Säulen, Balken, Linie, Fläche, Punkte (XY), Kreis.
+- **Daten:** Tabelle im Dialog – erste Zeile = Namen der Datenreihen, erste Spalte = Kategorien bzw. x-Werte. Einen
+  Bereich in **Excel/LibreOffice kopieren** und mit `Strg+V` in eine Zelle einfügen (in die erste Zelle: ersetzt die
+  ganze Tabelle) oder *CSV laden …* (Trennzeichen `;`, `,` oder Tabulator). Zahlen mit Dezimalkomma (`12,5`),
+  Tausenderpunkt (`1.234,5`) und `%` werden erkannt. `Eingabetaste` springt eine Zeile tiefer, Knöpfe fügen
+  Zeilen/Reihen an, *Tauschen* vertauscht Zeilen und Spalten.
+- **Optionen:** Titel, Achsenbeschriftungen, Legende (Standard: unter dem Diagramm), Breite, Gitternetz, gestapelt
+  (Säulen/Balken), Datenpunkte markieren und Linien glätten (Linie/Fläche), Dezimalkomma (richtet sich nach der
+  Dokumentsprache). Jahreszahlen als x-Werte erscheinen ohne Tausendertrennung.
+- **Beschriftung und Label:** werden zur Abbildungsunterschrift bzw. zum Ziel für Querverweise (`fig:…`).
+- Die Vorschau im Dialog erzeugt die eingebaute Engine. **Doppelklick** auf ein eingefügtes Diagramm (oder
+  *Diagramm bearbeiten* im Bearbeitungsfeld) öffnet den Dialog wieder mit allen Daten. Das Modell steht als erste
+  Kommentarzeile (`% VisuTeX-Diagramm: …`) im Code; von Hand geänderter Diagrammcode bleibt erhalten, lässt sich danach
+  aber nur noch als Code bearbeiten.
+
+## Überprüfen
+
+### Abgabe-Check
+
+*Überprüfen → Abgabe-Check* prüft das Dokument vor der Abgabe und listet die Funde links, gruppiert nach Bereich
+(Fehler zuerst); ein Klick springt zur Stelle:
+
+- **Querverweise:** Verweis auf unbekanntes Label, doppelt vergebene oder nie verwendete Labels.
+- **Literatur:** zitierte Quelle fehlt in der `.bib`, Zitate ohne Literaturdatei, Literaturdatei nicht gefunden.
+- **Abbildungen und Tabellen:** ohne Beschriftung, Bilddatei fehlt.
+- **Gliederung:** leere Abschnitte, übersprungene Ebenen (z. B. Kapitel → Unterabschnitt).
+- **Inhalt:** Platzhalter und Notizen (`TODO`, `FIXME`, `XXX`, „Lorem ipsum“, Vorlagenfelder wie `[Titel der Arbeit]`),
+  leere Titelseitenfelder, Kommentare.
+- **Kompilieren und Seitenlayout:** Fehler des letzten Kompilierens, über den Rand ragender Text (Overfull hbox) und zu
+  volle Seiten – dafür vorher kompilieren (`F5`).
+
+Nach Änderungen *Erneut prüfen* (↻).
+
+### Versionsverlauf
+
+Jedes **Speichern** legt automatisch eine Version an (unveränderter Stand: keine neue). *Überprüfen → Versionsverlauf*
+zeigt sie nach Tagen mit Uhrzeit, Name und Wortzahl (inkl. Zu-/Abnahme):
+
+- **Version speichern …** sichert den aktuellen Stand unter einem Namen (z. B. „Abgabe“). Benannte Versionen bleiben
+  immer erhalten, von den automatischen die letzten 100.
+- **Klick** auf eine Version vergleicht sie mit dem aktuellen Stand; über die Knöpfe daneben: vergleichen,
+  **wiederherstellen** (der aktuelle Stand wird vorher als Version gesichert; übernommen ist die alte Fassung erst nach
+  dem Speichern), umbenennen, löschen.
+- Die Versionen liegen im Datenordner von VisuTeX (`versionen/`), nicht im Projektordner – sie gehören zum Speicherort
+  des Dokuments. Wird die Datei verschoben oder umbenannt, beginnt ein neuer Verlauf.
+
+### Vergleichen
+
+Der Vergleich zeigt geänderte Stellen mit etwas Kontext: gelöschte Zeilen rot, neue grün, **geänderte Wörter
+hervorgehoben**; oben die Bilanz (Änderungen, Wörter mehr/weniger) und Pfeile zur vorherigen/nächsten Änderung.
+*Überprüfen → Mit Datei vergleichen …* vergleicht den aktuellen Stand mit einer beliebigen `.tex`-Datei (z. B. der
+Fassung mit Anmerkungen der Betreuerin oder des Betreuers).
 
 ## Folien
 

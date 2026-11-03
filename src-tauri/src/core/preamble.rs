@@ -13,6 +13,8 @@ use std::collections::BTreeSet;
 pub struct Usage {
     pub tikz: bool,
     pub circuitikz: bool,
+    /// Diagramme (Achsen, `\addplot`)
+    pub pgfplots: bool,
     pub multirow: bool,
     pub multicol: bool,
     pub landscape_sections: bool,
@@ -449,6 +451,10 @@ fn generate_rest(
     if usage.circuitikz {
         lines.push("\\usepackage[european]{circuitikz}".into());
     }
+    if usage.pgfplots {
+        lines.push("\\usepackage{pgfplots}".into());
+        lines.push("\\pgfplotsset{compat=1.18}".into());
+    }
     if needs_bibliography {
         let (_, natbib) = bibliography_style(&settings.bibliography.style);
         lines.push(format!("\\usepackage[{natbib}]{{natbib}}"));
@@ -701,6 +707,9 @@ pub fn required_packages(usage: &Usage) -> Vec<&'static str> {
     }
     if usage.circuitikz {
         required.push("circuitikz");
+    }
+    if usage.pgfplots {
+        required.push("pgfplots");
     }
     if usage.natbib {
         required.push("natbib");

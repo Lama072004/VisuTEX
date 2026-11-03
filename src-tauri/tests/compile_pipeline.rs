@@ -25,6 +25,13 @@ fn bundle() -> BundleConfig {
     }
 }
 
+/// Ausgabeordner ohne Leeren (mehrere Dateien eines Tests).
+fn project_dir_keep(name: &str) -> PathBuf {
+    let root = manifest().join("target").join(name);
+    std::fs::create_dir_all(&root).unwrap();
+    root
+}
+
 fn project_dir(name: &str) -> PathBuf {
     let root = manifest().join("target").join(name);
     let _ = std::fs::remove_dir_all(&root);
@@ -510,4 +517,145 @@ fn example_addon_template_compiles() {
         .all(|message| message.severity != "error"));
     let stored = visutex_lib::pdf::load(output.pdf).unwrap();
     assert_eq!(stored.pages.len(), 1);
+}
+
+/// SyncTeX: Hin- und Rückweg zwischen Blockzeilen des Exports und PDF-Positionen.
+#[test]
+#[ignore]
+fn synctex_maps_blocks_to_pdf_and_back() {
+    let settings = DocumentSettings::from_value(&serde_json::json!({ "documentClass": "article" }));
+    let paragraph = |text: &str| serde_json::json!({ "type": "paragraph", "content": [{ "type": "text", "text": text }] });
+    let long = "Dies ist ein Absatz mit genug Text, damit er über mehrere Zeilen läuft. ".repeat(6);
+    let doc = serde_json::json!({ "type": "doc", "content": [
+        paragraph("Erster Absatz oben auf der Seite."),
+        paragraph(&long),
+        { "type": "pageBreak", "attrs": { "breakType": "page" } },
+        paragraph("Absatz auf Seite zwei."),
+    ]});
+    let exported = export_document(
+        &doc,
+        &ExportOptions {
+            settings: &settings,
+            custom_preamble: None,
+            addon_preamble: &[],
+        },
+    );
+    let output = compile(
+        CompileRequest {
+            latex: exported.latex.clone(),
+            project_root: Some(project_dir("visutex-synctex")),
+            extra_search_paths: Vec::new(),
+        },
+        &bundle(),
+        &mut |_| {},
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
+    let text = output.synctex.as_deref().expect("SyncTeX-Datei fehlt");
+    let sync = visutex_lib::core::synctex::parse(text);
+    assert_eq!(sync.page_count(), 2);
+    let stored = visutex_lib::pdf::load(output.pdf).unwrap();
+    let page = &stored.pages[0];
+    let left_margin = 25.0 * 72.0 / 25.4;
+
+    // Editor → PDF: erster Absatz oben auf Seite 1, am linken Rand (Einzug höchstens ~1 cm)
+    let first = exported.block_lines[0];
+    let point = sync.pdf_for_line(first[0]).expect("Zeile im PDF");
+    eprintln!("Absatz 1: {point:?}, Seite {}×{}", page.width, page.height);
+    assert_eq!(point.page, 0);
+    assert!(
+        point.x > left_margin - 3.0 && point.x < left_margin + 30.0,
+        "x = {}",
+        point.x
+    );
+    assert!(point.y > 50.0 && point.y < 200.0, "y = {}", point.y);
+    // Absatz nach dem Seitenumbruch auf Seite 2
+    assert_eq!(
+        sync.pdf_for_line(exported.block_lines[3][0]).unwrap().page,
+        1
+    );
+
+    // PDF → Editor: Klick in die Mitte des langen Absatzes trifft dessen Zeilen (TeX verbucht
+    // Absätze auf der beendenden Zeile – höchstens eine Zeile hinter dem Block)
+    let second = exported.block_lines[1];
+    let start = sync.pdf_for_line(second[0]).unwrap();
+    let line = sync
+        .line_at(0, page.width / 2.0, start.y + start.height + 14.0)
+        .expect("Quelltextzeile");
+    eprintln!("Klick → Zeile {line}, Absatz 2 = {second:?}");
+    assert!(
+        line >= second[0] && line <= second[1] + 1,
+        "{line} nicht in {second:?}"
+    );
+    // zwischen den Zeilen geklickt – trotzdem dieser Absatz, nicht die Seiten-Box
+    let between = sync
+        .line_at(0, page.width / 2.0, start.y + start.height + 3.0)
+        .unwrap();
+    assert!(
+        between >= second[0] && between <= second[1] + 1,
+        "{between}"
+    );
+}
+
+/// Diagramme aus Daten: alle Arten kompilieren mit der eingebauten Engine (pgfplots aus dem Bundle).
+#[test]
+#[ignore]
+fn charts_compile_in_document() {
+    use visutex_lib::core::chart::{parse_table, to_latex, Chart};
+    let data = parse_table("Monat\tUmsatz\tKosten\nJan\t10,5\t7\nFeb\t12\t8,25\nMär\t9\t6,5");
+    let numeric = parse_table("t in s;U in V\n0;0\n0,5;2,5\n1;4\n1,5;4,6");
+    let mut content = Vec::new();
+    for (kind, table) in [
+        ("line", &numeric),
+        ("bar", &data),
+        ("barh", &data),
+        ("scatter", &numeric),
+        ("area", &data),
+        ("pie", &data),
+    ] {
+        let chart = Chart {
+            kind: kind.into(),
+            title: format!("Diagramm {kind} & Test"),
+            data: table.clone(),
+            stacked: kind == "bar",
+            ..Chart::default()
+        };
+        let code = to_latex(&chart).unwrap_or_else(|error| panic!("{kind}: {error}"));
+        content.push(serde_json::json!({ "type": "tikzBlock", "attrs": { "code": code, "environment": "tikzpicture", "caption": format!("Art {kind}") } }));
+    }
+    let doc = serde_json::json!({ "type": "doc", "content": content });
+    let settings = DocumentSettings::from_value(&serde_json::json!({ "documentClass": "article" }));
+    let exported = export_document(
+        &doc,
+        &ExportOptions {
+            settings: &settings,
+            custom_preamble: None,
+            addon_preamble: &[],
+        },
+    );
+    assert!(exported.latex.contains(r"\usepackage{pgfplots}"));
+    let output = compile(
+        CompileRequest {
+            latex: exported.latex,
+            project_root: Some(project_dir("visutex-charts")),
+            extra_search_paths: Vec::new(),
+        },
+        &bundle(),
+        &mut |_| {},
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{:?}", failure.message, failure.messages));
+    let errors: Vec<_> = output
+        .messages
+        .iter()
+        .filter(|message| message.severity == "error")
+        .collect();
+    assert!(errors.is_empty(), "{errors:#?}");
+    let stored = visutex_lib::pdf::load(output.pdf).unwrap();
+    for page in 0..stored.pages.len() {
+        std::fs::write(
+            project_dir_keep("visutex-charts-pdf").join(format!("diagramme-{page}.png")),
+            visutex_lib::pdf::render_page_png(&stored, page, 1.0).unwrap(),
+        )
+        .unwrap();
+    }
+    eprintln!("{} Seiten", stored.pages.len());
 }

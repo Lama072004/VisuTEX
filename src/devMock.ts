@@ -57,6 +57,7 @@ export async function mockInvoke(command: string, args: Record<string, unknown> 
         assets: [],
         warnings: [],
         missingPackages: [],
+        blockLines: [],
       };
     case "addons_list":
     case "preamble_macros":
@@ -68,7 +69,15 @@ export async function mockInvoke(command: string, args: Record<string, unknown> 
     case "sketch_to_latex":
       return { code: "% Skizze (nur in der Desktop-App)", environment: "tikzpicture" };
     case "sketch_from_code":
+    case "chart_from_code":
       return null;
+    case "chart_to_latex":
+      return `% VisuTeX-Diagramm: ${JSON.stringify(args.chart)}\n% Diagramm (nur in der Desktop-App)`;
+    case "chart_parse_table":
+      return String(args.text ?? "")
+        .split(/\r?\n/)
+        .filter((line) => line.trim())
+        .map((line) => line.split(line.includes("\t") ? "\t" : ";").map((cell) => cell.trim()));
     case "allow_project_dir":
       return null;
     case "sketch_catalog":

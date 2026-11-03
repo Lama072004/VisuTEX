@@ -274,8 +274,9 @@ export function TikzBlockView({ node, updateAttributes, selected, deleteNode, ed
   const preview = String(node.attrs.preview ?? "");
   const previewKey = `${environment}|${options}|${code}`;
   const upToDate = preview && node.attrs.previewCode === previewKey;
-  // Skizzen tragen ihr Modell als erste Kommentarzeile – im Code-Feld ausgeblendet.
-  const sketchHeader = code.startsWith("% VisuTeX-Skizze:") ? code.split("\n")[0] : "";
+  // Skizzen und Diagramme tragen ihr Modell als erste Kommentarzeile – im Code-Feld ausgeblendet.
+  const model = code.startsWith("% VisuTeX-Skizze:") ? "sketch" : code.startsWith("% VisuTeX-Diagramm:") ? "chart" : null;
+  const sketchHeader = model ? code.split("\n")[0] : "";
   const body = sketchHeader ? code.slice(sketchHeader.length).replace(/^\r?\n/, "") : code;
   const [draft, setDraft] = useState(body);
   const [busy, setBusy] = useState(false);
@@ -327,8 +328,13 @@ export function TikzBlockView({ node, updateAttributes, selected, deleteNode, ed
     <NodeViewWrapper className={`tikz-block${selected ? " is-selected" : ""}`} data-label={label || undefined} data-caption={caption ? "true" : undefined}>
       <div
         className="tikz-preview-frame"
-        title={t("Klicken: auswählen (Entf löscht) · Doppelklick, Eingabetaste oder Lostippen: Code bearbeiten")}
-        onDoubleClick={() => textareaRef.current?.focus()}
+        title={model === "chart" ? t("Klicken: auswählen (Entf löscht) · Doppelklick: Diagramm bearbeiten") : t("Klicken: auswählen (Entf löscht) · Doppelklick, Eingabetaste oder Lostippen: Code bearbeiten")}
+        onDoubleClick={() => {
+          const pos = typeof getPos === "function" ? getPos() : undefined;
+          // Diagramme wie in Word: Doppelklick öffnet den Diagramm-Dialog
+          if (model === "chart" && typeof pos === "number") getRuntime().editNode({ type: "chart", pos });
+          else textareaRef.current?.focus();
+        }}
       >
         {preview ? (
           <img className={`tikz-preview${upToDate ? "" : " is-stale"}`} src={preview} alt={caption || t("TikZ-Zeichnung")} draggable={false} />
@@ -358,7 +364,8 @@ export function TikzBlockView({ node, updateAttributes, selected, deleteNode, ed
               reselect(editor, getPos);
             }}
           />
-          {sketchHeader && editing && <div className="node-hint">{t("Von Hand geänderte Skizzen lassen sich danach nicht mehr im Skizzier-Werkzeug bearbeiten.")}</div>}
+          {model === "sketch" && editing && <div className="node-hint">{t("Von Hand geänderte Skizzen lassen sich danach nicht mehr im Skizzier-Werkzeug bearbeiten.")}</div>}
+          {model === "chart" && editing && <div className="node-hint">{t("Von Hand geänderte Diagramme lassen sich danach nicht mehr im Diagramm-Dialog bearbeiten.")}</div>}
           <div className="node-edit-row">
             <label>
               {t("Umgebung")}
@@ -382,15 +389,15 @@ export function TikzBlockView({ node, updateAttributes, selected, deleteNode, ed
             <button type="button" className="primary" disabled={busy} onClick={() => void render()}>
               {busy ? t("Kompiliere …") : t("Vorschau aktualisieren")}
             </button>
-            {sketchHeader && !editing && (
+            {model && !editing && (
               <button
                 type="button"
                 onClick={() => {
                   const pos = typeof getPos === "function" ? getPos() : undefined;
-                  if (typeof pos === "number") getRuntime().editNode({ type: "sketch", pos });
+                  if (typeof pos === "number") getRuntime().editNode({ type: model, pos });
                 }}
               >
-                {t("In Skizze bearbeiten")}
+                {model === "chart" ? t("Diagramm bearbeiten") : t("In Skizze bearbeiten")}
               </button>
             )}
             <button type="button" className="node-delete" onClick={deleteNode} title={t("Zeichnung löschen")}>

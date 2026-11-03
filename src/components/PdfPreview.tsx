@@ -1,11 +1,13 @@
 /**
  * PDF-Vorschau: Seiten werden in Rust (hayro) als PNG gerendert und nur bei
  * Sichtbarkeit angefordert. Kein PDF-Viewer/iframe im WebView nötig.
+ * Doppelklick springt an die Stelle im Dokument (SyncTeX); „Im PDF zeigen“ scrollt hierher
+ * und markiert die Stelle kurz (`reveal`).
  */
 import { useEffect, useRef, useState } from "react";
-import { CircleAlert, Download, Maximize2, Play, TriangleAlert, ZoomIn, ZoomOut } from "lucide-react";
+import { CircleAlert, Download, LocateFixed, Maximize2, Play, TriangleAlert, ZoomIn, ZoomOut } from "lucide-react";
 import { api } from "../api";
-import type { CompileFailure, CompileResult, TexMessage } from "../api";
+import type { CompileFailure, CompileResult, PdfPoint, TexMessage } from "../api";
 import { useT } from "../i18n";
 import { useCtrlWheel } from "./useCtrlWheel";
 
@@ -15,7 +17,23 @@ export type CompileStatus =
   | { state: "done"; result: CompileResult }
   | { state: "failed"; failure: CompileFailure; previous: CompileResult | null };
 
-function PageImage({ pdfId, page, width, height, scale }: { pdfId: number; page: number; width: number; height: number; scale: number }) {
+/** Kurz eingeblendete Markierung einer Stelle („Im PDF zeigen“) */
+export type PdfReveal = PdfPoint & { token: number };
+
+type PageProps = {
+  pdfId: number;
+  page: number;
+  width: number;
+  height: number;
+  scale: number;
+  /** CSS-Pixel je PDF-Punkt */
+  cssScale: number;
+  marker: PdfReveal | null;
+  title: string;
+  onDoubleClick: (page: number, x: number, y: number) => void;
+};
+
+function PageImage({ pdfId, page, width, height, scale, cssScale, marker, title, onDoubleClick }: PageProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [url, setUrl] = useState("");
   const [visible, setVisible] = useState(false);
@@ -47,8 +65,25 @@ function PageImage({ pdfId, page, width, height, scale }: { pdfId: number; page:
     };
   }, [visible, pdfId, page, scale]);
   return (
-    <div className="pdf-page" ref={ref} style={{ width, height }}>
+    <div
+      className="pdf-page"
+      ref={ref}
+      style={{ width, height }}
+      data-page={page}
+      title={title}
+      onDoubleClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        onDoubleClick(page, (event.clientX - rect.left) / cssScale, (event.clientY - rect.top) / cssScale);
+      }}
+    >
       {url ? <img src={url} alt={`Seite ${page + 1}`} draggable={false} /> : <div className="pdf-page-loading" />}
+      {marker && (
+        <div
+          key={marker.token}
+          className="pdf-sync-marker"
+          style={{ top: Math.max(0, marker.y * cssScale - 3), height: Math.max(14, marker.height * cssScale + 6) }}
+        />
+      )}
     </div>
   );
 }
@@ -58,9 +93,14 @@ type Props = {
   onCompile: () => void;
   onSavePdf: () => void;
   onMessageClick: (message: TexMessage) => void;
+  /** Doppelklick auf eine Seite (Koordinaten in bp ab links oben) */
+  onPageDoubleClick: (page: number, x: number, y: number) => void;
+  /** Cursorstelle im PDF zeigen */
+  onShowInPdf: () => void;
+  reveal: PdfReveal | null;
 };
 
-export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Props) {
+export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick, onPageDoubleClick, onShowInPdf, reveal }: Props) {
   const t = useT();
   const [zoom, setZoom] = useState(1);
   const [fitWidth, setFitWidth] = useState(true);
@@ -94,6 +134,17 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Pro
   });
   const renderScale = Math.min(6, cssScale * (window.devicePixelRatio || 1));
 
+  // „Im PDF zeigen“: Stelle ins obere Drittel scrollen (Markierung zeichnet die Seite)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!reveal || !container) return;
+    const page = container.querySelector<HTMLElement>(`.pdf-page[data-page="${reveal.page}"]`);
+    if (!page) return;
+    const top = page.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+    container.scrollTo({ top: Math.max(0, top + reveal.y * cssScale - container.clientHeight / 3), behavior: "smooth" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reveal?.token]);
+
   return (
     <div className="pdf-preview">
       <div className="pane-toolbar">
@@ -118,6 +169,9 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Pro
         </button>
         <button type="button" className="icon-button" title={t("Vergrößern")} onClick={() => { setFitWidth(false); setZoom((value) => Math.min(4, (fitWidth ? cssScale / (96 / 72) : value) + 0.1)); }}>
           <ZoomIn size={16} />
+        </button>
+        <button type="button" className="icon-button" title={t("Cursorstelle im PDF zeigen (Strg+Alt+J)")} disabled={!result} onClick={onShowInPdf}>
+          <LocateFixed size={16} />
         </button>
         <button type="button" className={`icon-button${fitWidth ? " active" : ""}`} title={t("An Breite anpassen")} onClick={() => setFitWidth(true)}>
           <Maximize2 size={16} />
@@ -158,6 +212,10 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick }: Pro
               width={Math.round(page.width * cssScale)}
               height={Math.round(page.height * cssScale)}
               scale={renderScale}
+              cssScale={cssScale}
+              marker={reveal && reveal.page === index ? reveal : null}
+              title={t("Doppelklick: zur Stelle im Dokument springen")}
+              onDoubleClick={onPageDoubleClick}
             />
           ))
         ) : (

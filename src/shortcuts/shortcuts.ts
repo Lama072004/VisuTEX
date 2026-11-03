@@ -79,6 +79,7 @@ export const SHORTCUT_COMMANDS: ShortcutCommand[] = [
 
   { id: "view.toggleCode", label: "Visuell ↔ Code umschalten", category: "Ansicht", scope: "global", defaults: ["Ctrl+Alt+V"] },
   { id: "view.togglePdf", label: "PDF-Vorschau ein/aus", category: "Ansicht", scope: "global", defaults: ["Ctrl+Alt+P"] },
+  { id: "view.showInPdf", label: "Cursorstelle im PDF zeigen", category: "Ansicht", scope: "global", defaults: ["Ctrl+Alt+J"] },
   { id: "view.toggleOutline", label: "Navigation ein/aus", category: "Ansicht", scope: "global", defaults: [] },
   { id: "view.togglePaged", label: "Seitenansicht ein/aus", category: "Ansicht", scope: "global", defaults: [] },
   { id: "view.toggleRuler", label: "Lineal ein/aus", category: "Ansicht", scope: "global", defaults: [] },

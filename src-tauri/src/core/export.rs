@@ -31,6 +31,36 @@ pub struct ExportResult {
     pub assets: Vec<EmbeddedAsset>,
     pub warnings: Vec<String>,
     pub missing_packages: Vec<String>,
+    /// Zeilen (1-basiert, von–bis) je oberstem Dokumentblock im fertigen `latex`; `[0, 0]` für
+    /// Blöcke ohne Code. Verbindet SyncTeX-Zeilen mit den Blöcken im Editor.
+    pub block_lines: Vec<[u32; 2]>,
+}
+
+/// Zeilenbereiche der Blöcke: jeden Blockcode der Reihe nach im Dokument suchen.
+fn block_line_ranges(
+    latex: &str,
+    body_start: usize,
+    blocks: &[(usize, String)],
+    count: usize,
+) -> Vec<[u32; 2]> {
+    let mut ranges = vec![[0u32, 0u32]; count];
+    let mut cursor = body_start;
+    let line_at = |offset: usize| latex[..offset].matches('\n').count() as u32 + 1;
+    for (index, code) in blocks {
+        let code = code.trim_matches('\n');
+        if code.is_empty() {
+            continue;
+        }
+        if let Some(found) = latex[cursor..].find(code) {
+            let start = cursor + found;
+            let end = start + code.len();
+            if let Some(range) = ranges.get_mut(*index) {
+                *range = [line_at(start), line_at(end)];
+            }
+            cursor = end;
+        }
+    }
+    ranges
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -693,6 +723,8 @@ pub struct Exporter<'a> {
     enumerate_depth: usize,
     /// Die (eigene) Präambel lädt biblatex → `\printbibliography` statt BibTeX-Befehlen.
     pub biblatex: bool,
+    /// Code je oberstem Block (Index im Dokument) – für die Zeilenzuordnung (SyncTeX)
+    block_codes: Vec<(usize, String)>,
 }
 
 impl<'a> Exporter<'a> {
@@ -712,6 +744,7 @@ impl<'a> Exporter<'a> {
             layout_started: false,
             enumerate_depth: 0,
             biblatex: false,
+            block_codes: Vec::new(),
         }
     }
 
@@ -723,6 +756,9 @@ impl<'a> Exporter<'a> {
         }
         if has(&["\\begin{circuitikz}"]) {
             self.usage.circuitikz = true;
+        }
+        if super::chart::uses_pgfplots(raw) {
+            self.usage.pgfplots = true;
         }
         if has(&["\\multirow"]) {
             self.usage.multirow = true;
@@ -869,6 +905,9 @@ impl<'a> Exporter<'a> {
                     self.usage.circuitikz = true;
                 } else {
                     self.usage.tikz = true;
+                }
+                if super::chart::uses_pgfplots(&attr_str(node, "code")) {
+                    self.usage.pgfplots = true;
                 }
             }
             "rawLatexBlock" | "rawLatexInline" => {
@@ -1621,6 +1660,9 @@ impl<'a> Exporter<'a> {
             self.usage.circuitikz = true;
         } else {
             self.usage.tikz = true;
+        }
+        if super::chart::uses_pgfplots(&attr_str(node, "code")) {
+            self.usage.pgfplots = true;
         }
         let options = attr_str(node, "options");
         let options = options.trim();
@@ -2691,7 +2733,7 @@ impl<'a> Exporter<'a> {
             .iter()
             .rposition(|node| !(node_type(node) == "paragraph" && children(node).is_empty()))
             .map_or(0, |index| index + 1);
-        for node in &all[..last_content] {
+        for (index, node) in all[..last_content].iter().enumerate() {
             let kind = node_type(node);
             let is_section_break = kind == "pageBreak" && attr_str(node, "breakType") == "section";
             if !self.layout_started && !is_section_break && !leading.contains(&kind) {
@@ -2711,6 +2753,7 @@ impl<'a> Exporter<'a> {
             if latex.trim().is_empty() {
                 continue;
             }
+            self.block_codes.push((index, latex.clone()));
             match (previous, parts.last_mut()) {
                 (Some(previous), Some(last)) if joins_tight(previous, node) => {
                     last.push('\n');
@@ -2779,6 +2822,12 @@ pub fn export_document(doc: &Value, options: &ExportOptions) -> ExportResult {
         None => generated_preamble.clone(),
     };
     let latex = format!("{used_preamble}\\begin{{document}}\n\n{body}\n\n\\end{{document}}\n");
+    let block_lines = block_line_ranges(
+        &latex,
+        used_preamble.len(),
+        &exporter.block_codes,
+        children(doc).len(),
+    );
     let missing = custom
         .map(|preamble| preamble::missing_packages(preamble, &exporter.usage))
         .unwrap_or_default();
@@ -2797,6 +2846,7 @@ pub fn export_document(doc: &Value, options: &ExportOptions) -> ExportResult {
         assets: exporter.assets,
         warnings,
         missing_packages: missing,
+        block_lines,
     }
 }
 
@@ -2888,6 +2938,38 @@ mod tests {
             "Titel\\\\{}\n[Studiengang]\\\\{}\n*Stern\\\\\nnormal"
         );
         assert_eq!(join_latex_lines(&[]), "");
+    }
+
+    /// SyncTeX: Zeilenbereich je oberstem Block im fertigen Dokument.
+    #[test]
+    fn reports_line_ranges_per_block() {
+        let settings = DocumentSettings::default();
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "Einleitung" }] },
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Erster Absatz." }] },
+            { "type": "paragraph" },
+            { "type": "mathBlock", "attrs": { "latex": "a^2 + b^2 = c^2", "environment": "align" } },
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Letzter Absatz." }] }
+        ]});
+        let exported = export_document(
+            &doc,
+            &ExportOptions {
+                settings: &settings,
+                custom_preamble: None,
+                addon_preamble: &[],
+            },
+        );
+        let lines: Vec<&str> = exported.latex.lines().collect();
+        let text_of = |range: [u32; 2]| lines[range[0] as usize - 1..range[1] as usize].join("\n");
+        assert_eq!(exported.block_lines.len(), 5);
+        assert!(text_of(exported.block_lines[0]).contains("Einleitung"));
+        assert_eq!(text_of(exported.block_lines[1]), "Erster Absatz.");
+        // leerer Absatz (eigene Leerzeile) liegt zwischen seinen Nachbarn
+        assert!(exported.block_lines[2][0] > exported.block_lines[1][1]);
+        let math = exported.block_lines[3];
+        assert!(math[1] > math[0], "mehrzeilige Formel");
+        assert!(text_of(math).contains("a^2 + b^2 = c^2"));
+        assert!(text_of(exported.block_lines[4]).contains("Letzter Absatz."));
     }
 
     #[test]

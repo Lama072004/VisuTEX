@@ -43,6 +43,27 @@ pub struct CompileOutput {
     pub aux: String,
     /// TeX-Dateien, die fehlten (PDF trotzdem erzeugt) – z. B. zum Nachladen anbieten.
     pub missing_files: Vec<String>,
+    /// SyncTeX-Zuordnung PDF ↔ Quelltext (Textform, entpackt)
+    pub synctex: Option<String>,
+}
+
+/// Textform der SyncTeX-Datei (`.synctex.gz` wird entpackt).
+fn synctex_text(files: &tectonic::io::memory::MemoryFileCollection) -> Option<String> {
+    use std::io::Read;
+    let data = files
+        .get(&format!("{MAIN_NAME}.synctex.gz"))
+        .or_else(|| files.get(&format!("{MAIN_NAME}.synctex")))?
+        .data
+        .clone();
+    if data.starts_with(&[0x1f, 0x8b]) {
+        let mut text = String::new();
+        flate2::read::GzDecoder::new(data.as_slice())
+            .read_to_string(&mut text)
+            .ok()?;
+        Some(text)
+    } else {
+        String::from_utf8(data).ok()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -234,6 +255,8 @@ pub fn compile(
         .format_cache_path(format_cache)
         .keep_logs(true)
         .keep_intermediates(false)
+        // Doppelklick in der PDF-Vorschau ↔ Stelle im Editor
+        .synctex(true)
         .print_stdout(false)
         .output_format(tectonic::driver::OutputFormat::Pdf)
         .shell_escape_disabled()
@@ -299,6 +322,7 @@ pub fn compile(
                     .get(&format!("{MAIN_NAME}.aux"))
                     .map(|file| String::from_utf8_lossy(&file.data).into_owned())
                     .unwrap_or_default(),
+                synctex: synctex_text(&files),
             }),
             None => Err(CompileFailure {
                 message: "Tectonic meldete keinen Fehler, erzeugte aber kein PDF.".into(),

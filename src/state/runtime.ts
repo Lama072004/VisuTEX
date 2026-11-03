@@ -25,7 +25,8 @@ export type EditRequest =
         | "quantity"
         | "verticalSpace"
         | "environmentBlock"
-        | "sketch";
+        | "sketch"
+        | "chart";
       pos: number;
     }
   | { type: "insertImage" };

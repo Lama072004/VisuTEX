@@ -52,6 +52,7 @@ const TABLE_FILES = [
   "sketch/SketchPad.tsx",
   "components/Ribbon.tsx",
   "editor/schema.ts",
+  "components/ReviewPanel.tsx",
 ];
 
 export function collectKeys() {

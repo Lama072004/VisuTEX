@@ -25,6 +25,8 @@ pub struct StoredPdf {
     pub bytes: Arc<Vec<u8>>,
     pdf: Pdf,
     pub pages: Vec<PageSize>,
+    /// Zuordnung PDF ↔ Quelltext (nur beim Kompilieren des Dokuments)
+    pub synctex: Option<crate::core::synctex::SyncTex>,
 }
 
 #[derive(Default)]
@@ -45,7 +47,12 @@ pub fn load(bytes: Vec<u8>) -> Result<StoredPdf, String> {
             PageSize { width, height }
         })
         .collect();
-    Ok(StoredPdf { bytes, pdf, pages })
+    Ok(StoredPdf {
+        bytes,
+        pdf,
+        pages,
+        synctex: None,
+    })
 }
 
 impl PdfStore {

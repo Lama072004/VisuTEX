@@ -34,6 +34,24 @@ Die Oberfläche ruft Rust ausschließlich über typisierte Befehle in `src/api.t
    (LaTeX-Blöcke, Titelseite, TikZ, PDF-Grafiken, Folienbilder) sind **Vektorgrafiken (SVG, `hayro-svg`)** – auf den
    Inhalt zugeschnitten, in jeder Vergrößerung scharf. Nur der PDF-Vorschaubereich rastert Seiten (PNG), weil dort ganze
    Seiten schnell erscheinen müssen.
+7. **PDF ↔ Dokument** (`core/synctex.rs`): Tectonic schreibt beim Kompilieren eine SyncTeX-Datei (gz, im Speicher);
+   `pdf.rs` hält sie zum PDF. Der Export liefert zu jedem Block seine Zeilen im LaTeX (`blockLines`), so führt ein
+   Doppelklick ins PDF über die Zeile zum Block (`src/editor/syncLines.ts`, Aufblinken `syncFlash.ts`) und umgekehrt
+   die Cursorzeile zur Stelle im PDF (`synctex_to_source` / `synctex_to_pdf`).
+
+## Überprüfen, Literatur, Diagramme, Versionen
+
+- **Abgabe-Check** (`core/review.rs`): prüft Dokument-JSON, `.bib`, Bilddateien und das Protokoll des letzten
+  Kompilierens (Overfull hbox/vbox) → Funde mit Schweregrad, Code und Block (`ReviewPanel.tsx`).
+- **Literatur per DOI/ISBN** (`references.rs`, `core/identifiers.rs`): DOI über doi.org (Content Negotiation
+  `application/x-bibtex`), ISBN über OpenLibrary → BibTeX mit lesbarem Schlüssel; nur auf Knopfdruck (Internet).
+- **Diagramme** (`core/chart.rs`, `ChartDialog.tsx`): Tabelle + Diagrammart → `pgfplots`-Code (Kreis: reines TikZ) als
+  TikZ-Block; das Modell steht wie bei Skizzen als erste Kommentarzeile (`% VisuTeX-Diagramm: {…}`). Der Export
+  ergänzt `pgfplots` + `\pgfplotsset{compat=1.18}` automatisch.
+- **Versionsverlauf** (`history.rs`): bei jedem Speichern der vollständige LaTeX-Code im Datenordner
+  (`versionen/<SHA-256 des Dokumentpfads>/`, `index.json` + `<zeitstempel>.tex`; automatische Versionen höchstens 100,
+  benannte unbegrenzt). **Vergleich** (`core/diff.rs`): Myers-Diff auf Zeilen, geänderte Zeilenpaare zusätzlich
+  wortweise, Abschnitte mit Kontext (`CompareDialog.tsx`, `HistoryPanel.tsx`).
 
 ## Datenfluss Präsentation
 
@@ -97,10 +115,13 @@ sie einmalig ab (`startup_files`). Anleitung für Entwickler: [ADDONS.md](ADDONS
 │   │   ├── languages.rs              Dokumentsprachen (liest document-languages.json)
 │   │   ├── slides.rs                 Präsentation → Beamer
 │   │   ├── sketch.rs, sketch_catalog.rs  Skizze → TikZ, Bauteilkatalog
+│   │   ├── chart.rs                  Diagramme aus Daten → pgfplots
+│   │   ├── review.rs, synctex.rs, diff.rs, identifiers.rs  Abgabe-Check, PDF ↔ Dokument, Vergleich, DOI/ISBN
 │   │   ├── bibtex.rs, analysis.rs, project.rs, includes.rs, macros.rs, markers.rs, escape.rs, addon.rs
 │   │   ├── support.rs                eigene TeX-Dateien (deutscher IEEE-Stil) für Kompilieren und Export
 │   ├── src/compile.rs, prepare.rs, texbundle.rs, pdf.rs, preview.rs   Kompilieren und Vorschau
 │   ├── src/files.rs, images.rs, fonts.rs, system.rs, zotero.rs, addons.rs, templates.rs
+│   ├── src/references.rs, history.rs  Literatur per DOI/ISBN (Internet), Versionsverlauf (Datenordner)
 │   ├── src/embedded.rs           eingebettetes TeX-Bundle/Add-ons beim Start entpacken
 │   ├── src/share.rs              Teilen der gespeicherten Datei (Windows-Teilen-Fenster, Linux: xdg-email)
 │   ├── src/launch.rs             per Doppelklick übergebene Dateien (.vtxaddon, .visutex, .vtxslides, .tex)

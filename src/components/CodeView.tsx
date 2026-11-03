@@ -11,13 +11,15 @@ type Props = {
   revealLine: { line: number; token: number } | null;
   onCompile: () => void;
   onSave: () => void;
+  /** Zeile des Cursors (für „Im PDF zeigen“) */
+  onCursorLine?: (line: number) => void;
 };
 
-export default function CodeView({ value, onChange, theme, messages, revealLine, onCompile, onSave }: Props) {
+export default function CodeView({ value, onChange, theme, messages, revealLine, onCompile, onSave, onCursorLine }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const callbacks = useRef({ onChange, onCompile, onSave });
-  callbacks.current = { onChange, onCompile, onSave };
+  const callbacks = useRef({ onChange, onCompile, onSave, onCursorLine });
+  callbacks.current = { onChange, onCompile, onSave, onCursorLine };
 
   useEffect(() => {
     registerLatex();
@@ -41,12 +43,14 @@ export default function CodeView({ value, onChange, theme, messages, revealLine,
     });
     editorRef.current = editor;
     const subscription = editor.onDidChangeModelContent(() => callbacks.current.onChange(editor.getValue()));
+    const cursor = editor.onDidChangeCursorPosition((event) => callbacks.current.onCursorLine?.(event.position.lineNumber));
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => callbacks.current.onCompile());
     editor.addCommand(monaco.KeyCode.F5, () => callbacks.current.onCompile());
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => callbacks.current.onSave());
     editor.focus();
     return () => {
       subscription.dispose();
+      cursor.dispose();
       editor.getModel()?.dispose();
       editor.dispose();
       editorRef.current = null;

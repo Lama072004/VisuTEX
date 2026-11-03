@@ -10,13 +10,17 @@ import type { CSSProperties } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
 import type { Transaction } from "@tiptap/pm/state";
+import { NodeSelection, Selection } from "@tiptap/pm/state";
+import { blockForLine, lineForBlock } from "./editor/syncLines";
+import { flashBlock } from "./editor/syncFlash";
+import type { BlockLines } from "./editor/syncLines";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Braces, Eye, PanelRight, Play, Presentation } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./App.css";
 import { api, errorText, isTauri } from "./api";
-import type { AppInfo, CompileFailure, SetupStatus, UpdateInfo, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis } from "./api";
+import type { AppInfo, CompileFailure, SetupStatus, UpdateInfo, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis, ReviewCompileInfo, ReviewFinding, TextDiff, VersionInfo } from "./api";
 import { appExtensions } from "./editor/extensions";
 import { FormatPainter } from "./editor/formatPainter";
 import type { PageInfo } from "./editor/pagination";
@@ -38,11 +42,14 @@ import type { EditRequest } from "./state/runtime";
 import { Backstage } from "./components/Backstage";
 import type { AppPrefs, BackstageView, RecentFile } from "./components/Backstage";
 import { CitationDialog } from "./components/CitationDialog";
-import type { CitationValue } from "./components/CitationDialog";
+import { ChartDialog } from "./components/ChartDialog";
+import type { ChartInitial, ChartResult } from "./components/ChartDialog";
+import type { CitationTab, CitationValue } from "./components/CitationDialog";
 import { DialogProvider, useDialogs } from "./components/Dialogs";
 import { DocumentSettingsDialog } from "./components/DocumentSettingsDialog";
 import { PageCanvas } from "./components/PageCanvas";
 import { PdfPreview } from "./components/PdfPreview";
+import type { PdfReveal } from "./components/PdfPreview";
 import type { CompileStatus } from "./components/PdfPreview";
 import { Ribbon } from "./components/Ribbon";
 import type { RibbonActions, ViewState } from "./components/Ribbon";
@@ -56,6 +63,9 @@ import { QuickAccessBar } from "./components/QuickAccess";
 import { setPendingMath } from "./math/mathBridge";
 import { ShareDialog, TitleContextMenu } from "./components/ShareDialog";
 import { AddonInstallDialog } from "./components/AddonInstallDialog";
+import { ReviewPanel } from "./components/ReviewPanel";
+import { HistoryPanel } from "./components/HistoryPanel";
+import { CompareDialog } from "./components/CompareDialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_QUICK_ACCESS, normalizeQuickAccess } from "./shortcuts/quickAccess";
 import { completionData } from "./monaco/completionData";
@@ -229,9 +239,19 @@ function Workspace() {
   const [compileStatus, setCompileStatus] = useState<CompileStatus>({ state: "idle" });
   const [codeMessages, setCodeMessages] = useState<TexMessage[]>([]);
   const [revealLine, setRevealLine] = useState<{ line: number; token: number } | null>(null);
+  /** „Im PDF zeigen“: Stelle, die die PDF-Vorschau anscrollt und kurz markiert */
+  const [pdfReveal, setPdfReveal] = useState<PdfReveal | null>(null);
+  /** Cursorzeile der Code-Ansicht */
+  const codeCursorLine = useRef(1);
+  /** Abgabe-Check: offen mit Funden (null = geschlossen) */
+  const [review, setReview] = useState<{ findings: ReviewFinding[] | null; busy: boolean } | null>(null);
+  const [history, setHistory] = useState<{ versions: VersionInfo[] | null; busy: boolean } | null>(null);
+  const historyVisible = useRef(false);
+  historyVisible.current = history !== null;
+  const [comparison, setComparison] = useState<{ oldLabel: string; newLabel: string; diff: TextDiff; version: VersionInfo | null } | null>(null);
   const [search, setSearch] = useState<{ replace: boolean } | null>(null);
   const [settingsDialog, setSettingsDialog] = useState<{ section?: string } | null>(null);
-  const [citationDialog, setCitationDialog] = useState<{ initial: CitationValue | null; pos: number | null } | null>(null);
+  const [citationDialog, setCitationDialog] = useState<{ initial: CitationValue | null; pos: number | null; tab?: CitationTab } | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [pages, setPages] = useState<PageInfo[]>([{ chapter: "" }]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -242,6 +262,7 @@ function Workspace() {
   const [systemCheckBusy, setSystemCheckBusy] = useState(false);
   /** Skizzier-Werkzeug: offen, Ausgangsmodell, ggf. Position des bearbeiteten TikZ-Blocks */
   const [sketch, setSketch] = useState<{ initial: Sketch | null; pos: number | null } | null>(null);
+  const [chart, setChart] = useState<{ initial: ChartInitial | null; pos: number | null } | null>(null);
   const systemCheckOpenRef = useRef(false);
   systemCheckOpenRef.current = systemCheckOpen;
   /** Wird nach programmatischem Laden erhöht (setContent ohne update-Ereignis). */
@@ -252,7 +273,10 @@ function Workspace() {
   const docCode = useRef<string | null>(null);
   /** Stand beim Wechsel in die Code-Ansicht. */
   const codeBase = useRef<{ code: string; generatedPreamble: string; assets: EmbeddedAsset[] } | null>(null);
-  const lastCompiled = useRef<{ pdfId: number } | null>(null);
+  /** Zuletzt kompiliert: PDF, Zeilen je Block (null: aus der Code-Ansicht bzw. ohne Zuordnung) */
+  const lastCompiled = useRef<{ pdfId: number; blockLines: BlockLines | null } | null>(null);
+  /** Letztes Kompilieren (auch fehlgeschlagen) für den Abgabe-Check */
+  const lastCompileInfo = useRef<ReviewCompileInfo | null>(null);
   const noticeId = useRef(0);
   const stateRef = useRef({ settings, customPreamble, mode, code, docState, dirty, prefs });
   stateRef.current = { settings, customPreamble, mode, code, docState, dirty, prefs };
@@ -746,16 +770,20 @@ function Workspace() {
       .catch(() => undefined);
   }, [openDocument, setupStatus, setupView]);
 
-  /** Aktuelles LaTeX (Code-Ansicht: Code; sonst exakter Quelltext oder Export). */
-  const currentLatex = useCallback(async (): Promise<{ latex: string; assets: EmbeddedAsset[]; generatedPreamble: string }> => {
+  /** Aktuelles LaTeX (Code-Ansicht: Code; sonst exakter Quelltext oder Export). `quiet`: Export-Hinweise nicht melden. */
+  const currentLatex = useCallback(async (quiet = false): Promise<{ latex: string; assets: EmbeddedAsset[]; generatedPreamble: string; blockLines: BlockLines | null }> => {
     const current = stateRef.current;
     if (current.mode === "code") {
-      return { latex: current.code, assets: codeBase.current?.assets ?? [], generatedPreamble: codeBase.current?.generatedPreamble ?? "" };
+      return { latex: current.code, assets: codeBase.current?.assets ?? [], generatedPreamble: codeBase.current?.generatedPreamble ?? "", blockLines: null };
     }
     const exported = await api.exportDocument(editor?.getJSON() ?? { type: "doc" }, current.settings, current.customPreamble);
-    if (docCode.current !== null) return { latex: docCode.current, assets: exported.assets, generatedPreamble: exported.generatedPreamble };
-    for (const warning of exported.warnings.slice(0, 2)) notify(warning);
-    return { latex: exported.latex, assets: exported.assets, generatedPreamble: exported.generatedPreamble };
+    if (docCode.current !== null) {
+      // Originalcode eines unveränderten Fremddokuments: Blockzeilen gelten, wenn der Export ihn genau trifft
+      const blockLines = docCode.current === exported.latex ? exported.blockLines : null;
+      return { latex: docCode.current, assets: exported.assets, generatedPreamble: exported.generatedPreamble, blockLines };
+    }
+    if (!quiet) for (const warning of exported.warnings.slice(0, 2)) notify(warning);
+    return { latex: exported.latex, assets: exported.assets, generatedPreamble: exported.generatedPreamble, blockLines: exported.blockLines };
   }, [editor, notify]);
 
   /** Übernimmt geänderten Code in das visuelle Dokument (ohne die Ansicht zu wechseln). */
@@ -818,10 +846,12 @@ function Workspace() {
       const current = stateRef.current;
       try {
         let saved;
+        let savedLatex: string | null = null;
         if (kind === "tex") {
           const { latex, assets } = await currentLatex();
           saved = await api.exportTex(path, latex, assets, sourceRoot);
           docCode.current = latex;
+          savedLatex = latex;
         } else {
           const project: Project = {
             format: "visutex-project",
@@ -838,6 +868,8 @@ function Workspace() {
         setDirty(false);
         rememberRecent(saved.path);
         localStorage.removeItem("visutex-recovery");
+        // Versionsverlauf: jedes Speichern legt eine Version an (unverändert: keine)
+        void recordVersionRef.current(saved.path, savedLatex);
         if (saved.missingFiles.length) notify(`${t("Nicht gefundene Dateien (nicht kopiert):")} ${saved.missingFiles.join(", ")}`, "error");
         else notify(`${t("Gespeichert:")} ${fileName(saved.path)}`);
         return true;
@@ -908,9 +940,14 @@ function Workspace() {
     setCompileStatus({ state: "compiling", progress: t("Bereite vor …") });
     const unlisten = await api.onCompileProgress((text) => setCompileStatus({ state: "compiling", progress: text })).catch(() => null);
     try {
-      const { latex, assets } = await currentLatex();
+      const { latex, assets, blockLines } = await currentLatex();
       const result = await api.compileDocument(latex, current.docState.root, assets, current.prefs.allowOnline);
-      lastCompiled.current = { pdfId: result.pdfId };
+      lastCompiled.current = { pdfId: result.pdfId, blockLines };
+      lastCompileInfo.current = {
+        errors: result.messages.filter((message) => message.severity === "error").length,
+        layoutIssues: result.layoutIssues ?? [],
+        blockLines: blockLines ?? [],
+      };
       setCompileStatus({ state: "done", result });
       setCodeMessages(result.messages);
       // PDF ohne fehlende Pakete erzeugt → Nachladen anbieten
@@ -927,6 +964,11 @@ function Workspace() {
         previous: previous.state === "done" ? previous.result : previous.state === "failed" ? previous.previous : null,
       }));
       setCodeMessages(failure.messages);
+      lastCompileInfo.current = {
+        errors: Math.max(1, failure.messages.filter((message) => message.severity === "error").length),
+        layoutIssues: [],
+        blockLines: [],
+      };
       setView((value) => ({ ...value, showPdf: true }));
       if (failure.missingFiles?.length && !stateRef.current.prefs.allowOnline) {
         void offerPackageDownloadRef.current(failure.missingFiles);
@@ -939,6 +981,261 @@ function Workspace() {
   }, [currentLatex, t]);
   const compileRef = useRef(compile);
   compileRef.current = compile;
+
+  /** Obersten Block im visuellen Editor auswählen, in die Mitte scrollen und kurz hervorheben. */
+  const revealBlock = useCallback(
+    (index: number) => {
+      if (!editor || editor.state.doc.childCount === 0) return;
+      const doc = editor.state.doc;
+      const target = Math.max(0, Math.min(index, doc.childCount - 1));
+      let pos = 0;
+      for (let child = 0; child < target; child += 1) pos += doc.child(child).nodeSize;
+      const node = doc.child(target);
+      const selection = node.isAtom ? NodeSelection.create(doc, pos) : Selection.near(doc.resolve(pos + 1));
+      editor.view.dispatch(editor.state.tr.setSelection(selection));
+      editor.view.focus();
+      const dom = editor.view.nodeDOM(pos);
+      if (dom instanceof HTMLElement) dom.scrollIntoView({ block: "center", behavior: "smooth" });
+      flashBlock(editor.view, pos, pos + node.nodeSize);
+    },
+    [editor],
+  );
+
+  /** Doppelklick ins PDF → Stelle im Dokument (visuell: Block, Code-Ansicht: Zeile). */
+  const jumpFromPdf = useCallback(
+    async (page: number, x: number, y: number) => {
+      const compiled = lastCompiled.current;
+      if (!compiled) return;
+      const line = await api.synctexToSource(compiled.pdfId, page, x, y).catch(() => null);
+      if (line === null) {
+        notify(t("Für diese Stelle gibt es keine Zuordnung – bitte neu kompilieren."));
+        return;
+      }
+      if (stateRef.current.mode === "visual" && compiled.blockLines) {
+        revealBlock(blockForLine(compiled.blockLines, line));
+        return;
+      }
+      await setMode("code");
+      setRevealLine({ line, token: Date.now() });
+    },
+    // setMode ist weiter unten definiert und stabil
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [notify, revealBlock, t],
+  );
+
+  /** Abgabe-Check ausführen (öffnet den Bereich bzw. aktualisiert ihn). */
+  const runReview = useCallback(async () => {
+    if (!editor) return;
+    setReview((current) => ({ findings: current?.findings ?? null, busy: true }));
+    try {
+      if (stateRef.current.mode === "code") await syncFromCode();
+      const current = stateRef.current;
+      const findings = await api.reviewDocument(editor.getJSON(), current.docState?.root ?? null, current.settings.bibliography.file, lastCompileInfo.current);
+      setReview({ findings, busy: false });
+    } catch (error) {
+      notify(errorText(error), "error");
+      setReview((current) => current && { ...current, busy: false });
+    }
+    // syncFromCode ist weiter oben definiert und stabil
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor, notify]);
+
+  // ---------------------------------------------------------------- Versionsverlauf und Vergleich
+
+  /** Pfad des gespeicherten Dokuments (null: noch nicht gespeichert). */
+  const savedPath = () => {
+    const current = stateRef.current.docState;
+    return current?.path && !current.temporary ? current.path : null;
+  };
+
+  const loadHistory = useCallback(async () => {
+    const path = savedPath();
+    if (!path) {
+      setHistory({ versions: null, busy: false });
+      return;
+    }
+    setHistory((current) => ({ versions: current?.versions ?? null, busy: true }));
+    try {
+      setHistory({ versions: await api.historyList(path), busy: false });
+    } catch (error) {
+      notify(errorText(error), "error");
+      setHistory((current) => current && { ...current, busy: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notify]);
+
+  /** Nach dem Speichern: Version anlegen (Fehler nur in der Konsole – Speichern hat geklappt). */
+  const recordVersion = useCallback(
+    async (path: string, latex: string | null) => {
+      try {
+        const text = latex ?? (await currentLatex(true)).latex;
+        const info = await api.historySnapshot(path, text, null);
+        if (info && historyVisible.current) void loadHistory();
+      } catch (error) {
+        console.warn("Version konnte nicht angelegt werden:", error);
+      }
+    },
+    [currentLatex, loadHistory],
+  );
+  const recordVersionRef = useRef(recordVersion);
+  recordVersionRef.current = recordVersion;
+
+  const versionLabel = (version: VersionInfo) =>
+    `${version.name || t("Version")} – ${new Date(version.created).toLocaleString(languageInfo(stateRef.current.prefs.language).locale, { dateStyle: "medium", timeStyle: "short" })}`;
+
+  const saveVersion = useCallback(async () => {
+    const path = savedPath();
+    if (!path) {
+      await dialogs.alert(t("Version speichern"), t("Versionen gibt es erst, wenn das Dokument gespeichert ist. Bitte zuerst speichern (Strg+S)."));
+      return;
+    }
+    const values = await dialogs.form({
+      title: t("Version speichern"),
+      fields: [{ kind: "text", name: "name", label: t("Name der Version"), value: "", required: true, placeholder: t("z. B. Abgabe, Entwurf 2") }],
+    });
+    if (!values) return;
+    try {
+      const { latex } = await currentLatex(true);
+      const info = await api.historySnapshot(path, latex, String(values.name));
+      notify(`${t("Version gespeichert:")} ${info?.name ?? String(values.name)}`);
+      if (historyVisible.current) void loadHistory();
+    } catch (error) {
+      notify(errorText(error), "error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLatex, dialogs, loadHistory, notify, t]);
+
+  const compareVersion = useCallback(
+    async (version: VersionInfo) => {
+      const path = savedPath();
+      if (!path) return;
+      try {
+        const [old, { latex }] = await Promise.all([api.historyRead(path, version.id), currentLatex(true)]);
+        setComparison({ oldLabel: versionLabel(version), newLabel: t("Aktueller Stand"), diff: await api.compareTexts(old, latex), version });
+      } catch (error) {
+        notify(errorText(error), "error");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentLatex, notify, t],
+  );
+
+  const compareWithFile = useCallback(async () => {
+    const file = await open({ multiple: false, title: t("Mit Datei vergleichen"), filters: [{ name: "LaTeX", extensions: ["tex", "ltx", "txt"] }] });
+    if (typeof file !== "string") return;
+    try {
+      const [old, { latex }] = await Promise.all([api.readTextFile(file), currentLatex(true)]);
+      setComparison({ oldLabel: fileName(file), newLabel: t("Aktueller Stand"), diff: await api.compareTexts(old, latex), version: null });
+    } catch (error) {
+      notify(errorText(error), "error");
+    }
+  }, [currentLatex, notify, t]);
+
+  /** Version zurückholen; der aktuelle Stand wird vorher als Version gesichert. */
+  const restoreVersion = useCallback(
+    async (version: VersionInfo) => {
+      const path = savedPath();
+      if (!path || !editor) return;
+      const answer = await dialogs.confirm({
+        title: t("Version wiederherstellen"),
+        message: `${versionLabel(version)}\n\n${t("Der aktuelle Stand wird vorher als Version gesichert. Übernommen ist die wiederhergestellte Fassung erst nach dem Speichern.")}`,
+        confirmLabel: t("Wiederherstellen"),
+      });
+      if (answer !== true) return;
+      try {
+        const text = await api.historyRead(path, version.id);
+        const { latex, generatedPreamble, assets } = await currentLatex(true);
+        await api.historySnapshot(path, latex, null);
+        const current = stateRef.current;
+        if (current.mode === "code") {
+          onCodeChange(text);
+        } else {
+          const result = await api.codeToDocument({
+            code: text,
+            settings: current.settings,
+            generatedPreamble,
+            customPreamble: current.customPreamble,
+            projectRoot: current.docState?.root ?? null,
+          });
+          editor.commands.setContent(result.document, { emitUpdate: false });
+          setContentVersion((value) => value + 1);
+          setSettingsState(normalizeSettings(result.settings));
+          setCustomPreamble(result.customPreamble);
+          // exakt die Fassung der Version (verlustfrei), bis wieder bearbeitet wird
+          docCode.current = text;
+          codeBase.current = { code: text, generatedPreamble, assets };
+          markDirty();
+        }
+        setComparison(null);
+        notify(t("Version wiederhergestellt – mit Strg+S speichern, um sie zu übernehmen."));
+        if (historyVisible.current) void loadHistory();
+      } catch (error) {
+        await dialogs.alert(t("Version wiederherstellen"), errorText(error));
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentLatex, dialogs, editor, loadHistory, markDirty, notify, t],
+  );
+
+  const renameVersion = useCallback(
+    async (version: VersionInfo) => {
+      const path = savedPath();
+      if (!path) return;
+      const values = await dialogs.form({
+        title: t("Version umbenennen"),
+        fields: [{ kind: "text", name: "name", label: t("Name der Version"), value: version.name, placeholder: t("leer: automatisch") }],
+      });
+      if (!values) return;
+      try {
+        await api.historyRename(path, version.id, String(values.name));
+        void loadHistory();
+      } catch (error) {
+        notify(errorText(error), "error");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dialogs, loadHistory, notify, t],
+  );
+
+  const deleteVersion = useCallback(
+    async (version: VersionInfo) => {
+      const path = savedPath();
+      if (!path) return;
+      const answer = await dialogs.confirm({ title: t("Version löschen"), message: versionLabel(version), confirmLabel: t("Löschen"), danger: true });
+      if (answer !== true) return;
+      try {
+        await api.historyDelete(path, version.id);
+        void loadHistory();
+      } catch (error) {
+        notify(errorText(error), "error");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dialogs, loadHistory, notify, t],
+  );
+
+  /** Cursorstelle im PDF zeigen (visuell: aktueller Block, Code-Ansicht: Cursorzeile). */
+  const showInPdf = useCallback(async () => {
+    const compiled = lastCompiled.current;
+    if (!compiled) {
+      notify(t("Bitte zuerst kompilieren (F5) – danach lässt sich die Stelle im PDF zeigen."));
+      return;
+    }
+    const current = stateRef.current;
+    const line =
+      current.mode === "code"
+        ? codeCursorLine.current
+        : editor && compiled.blockLines
+          ? lineForBlock(compiled.blockLines, editor.state.selection.$from.index(0))
+          : null;
+    const point = line === null ? null : await api.synctexToPdf(compiled.pdfId, line).catch(() => null);
+    if (!point) {
+      notify(t("Für diese Stelle gibt es keine Zuordnung – bitte neu kompilieren."));
+      return;
+    }
+    setView((value) => ({ ...value, showPdf: true }));
+    setPdfReveal({ ...point, token: Date.now() });
+  }, [editor, notify, t]);
 
   const exportPdf = useCallback(async () => {
     const pdfId = await compile();
@@ -1472,6 +1769,20 @@ function Workspace() {
     else editor.chain().focus().insertContent({ type: "citation", attrs }).run();
   };
 
+  /** Diagramm als TikZ-Block einfügen bzw. den Block an `pos` ersetzen (Vorschau folgt automatisch). */
+  const insertChart = (result: ChartResult, pos: number | null) => {
+    if (!editor) return;
+    const previewCode = result.preview ? `tikzpicture||${result.code}` : "";
+    const attrs = { code: result.code, environment: "tikzpicture", options: "", caption: result.caption, label: result.label, preview: result.preview, previewCode };
+    const node = pos !== null ? editor.state.doc.nodeAt(pos) : null;
+    if (pos !== null && node?.type.name === "tikzBlock") {
+      editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, ...attrs }));
+    } else {
+      editor.chain().focus().insertContent({ type: "tikzBlock", attrs }).run();
+    }
+    notify(pos !== null ? t("Diagramm aktualisiert.") : t("Diagramm eingefügt."));
+  };
+
   // Bearbeitungsanfragen aus NodeViews (Doppelklick auf Chips)
   const editNode = useCallback(
     async (request: EditRequest) => {
@@ -1526,6 +1837,11 @@ function Workspace() {
         case "sketch": {
           const model = await api.sketchFromCode(String(attrs.code ?? "")).catch(() => null);
           setSketch({ initial: model, pos });
+          break;
+        }
+        case "chart": {
+          const model = await api.chartFromCode(String(attrs.code ?? "")).catch(() => null);
+          setChart({ initial: { chart: model, caption: String(attrs.caption ?? ""), label: String(attrs.label ?? "") }, pos });
           break;
         }
         case "environmentBlock": {
@@ -1739,6 +2055,7 @@ function Workspace() {
     },
     insertAppendix: () => editor?.chain().focus().insertContent({ type: "appendixMarker" }).run(),
     openSketch: () => setSketch({ initial: null, pos: null }),
+    openChart: () => setChart({ initial: null, pos: null }),
     insertCodeListing: async () => {
       if (!editor) return;
       const inCode = editor.isActive("codeBlock");
@@ -1833,6 +2150,7 @@ function Workspace() {
       editor?.chain().focus().insertContent({ type: "directoryBlock", attrs: { kind } }).run();
     },
     insertCitation: () => setCitationDialog({ initial: null, pos: null }),
+    insertCitationByIdentifier: () => setCitationDialog({ initial: null, pos: null, tab: "doi" }),
     chooseBibliography: () => void chooseBibliography(),
     updateSettings,
     openDocumentSettings: (section) => setSettingsDialog({ section }),
@@ -1921,6 +2239,11 @@ function Workspace() {
       setView((value) => ({ ...value, showPdf: true }));
       void compile();
     },
+    showInPdf: () => void showInPdf(),
+    openReview: () => void runReview(),
+    openHistory: () => void loadHistory(),
+    saveVersion: () => void saveVersion(),
+    compareWithFile: () => void compareWithFile(),
     openAddons: () => setBackstage("addons"),
     openShortcuts: () => setBackstage("shortcuts"),
     openSlides: showSlides,
@@ -1961,6 +2284,7 @@ function Workspace() {
       case "file.shortcuts": setBackstage("shortcuts"); return true;
       case "view.toggleCode": void setMode(stateRef.current.mode === "visual" ? "code" : "visual"); return true;
       case "view.togglePdf": setView((value) => ({ ...value, showPdf: !value.showPdf })); return true;
+      case "view.showInPdf": void showInPdf(); return true;
       case "view.toggleOutline": setView((value) => ({ ...value, showOutline: !value.showOutline })); return true;
       case "view.togglePaged": setView((value) => ({ ...value, paged: !value.paged })); return true;
       case "view.toggleRuler": setView((value) => ({ ...value, showRuler: !value.showRuler })); return true;
@@ -2187,6 +2511,33 @@ function Workspace() {
             </ul>
           </aside>
         )}
+        {history && (
+          <HistoryPanel
+            documentPath={docState?.path && !docState.temporary ? docState.path : null}
+            versions={history.versions}
+            busy={history.busy}
+            onRefresh={() => void loadHistory()}
+            onClose={() => setHistory(null)}
+            onSaveVersion={() => void saveVersion()}
+            onCompareFile={() => void compareWithFile()}
+            onCompare={(version) => void compareVersion(version)}
+            onRestore={(version) => void restoreVersion(version)}
+            onRename={(version) => void renameVersion(version)}
+            onDelete={(version) => void deleteVersion(version)}
+          />
+        )}
+        {review && (
+          <ReviewPanel
+            findings={review.findings}
+            busy={review.busy}
+            onRefresh={() => void runReview()}
+            onClose={() => setReview(null)}
+            onJump={(block) => {
+              if (stateRef.current.mode === "code") void setMode("visual").then(() => revealBlock(block));
+              else revealBlock(block);
+            }}
+          />
+        )}
 
         <main className="editor-pane">
           {mode === "visual" && search && editor && <SearchPanel editor={editor} replace={search.replace} onClose={() => setSearch(null)} />}
@@ -2207,6 +2558,27 @@ function Workspace() {
                 }
                 setSketch(null);
                 notify(t("Skizze eingefügt – Vorschau wird kompiliert."));
+              }}
+            />
+          )}
+          {comparison && (
+            <CompareDialog
+              oldLabel={comparison.oldLabel}
+              newLabel={comparison.newLabel}
+              diff={comparison.diff}
+              onClose={() => setComparison(null)}
+              onRestore={comparison.version ? () => comparison.version && void restoreVersion(comparison.version) : undefined}
+            />
+          )}
+          {chart && (
+            <ChartDialog
+              initial={chart.initial}
+              decimalComma={documentLanguage(settings.language).decimal === ","}
+              allowOnline={prefs.allowOnline}
+              onDone={(result) => {
+                const pos = chart.pos;
+                setChart(null);
+                if (result && editor) insertChart(result, pos);
               }}
             />
           )}
@@ -2249,6 +2621,7 @@ function Workspace() {
                 revealLine={revealLine}
                 onCompile={() => actions.compile()}
                 onSave={() => void saveRef.current()}
+                onCursorLine={(line) => (codeCursorLine.current = line)}
               />
             </Suspense>
           )}
@@ -2264,6 +2637,9 @@ function Workspace() {
                 if (message.line === null) return;
                 void setMode("code").then(() => setRevealLine({ line: message.line as number, token: Date.now() }));
               }}
+              onPageDoubleClick={(page, x, y) => void jumpFromPdf(page, x, y)}
+              onShowInPdf={() => void showInPdf()}
+              reveal={pdfReveal}
             />
           </aside>
         )}
@@ -2316,6 +2692,7 @@ function Workspace() {
           projectRoot={projectRoot}
           bibFile={settings.bibliography.file}
           initial={citationDialog.initial}
+          initialTab={citationDialog.tab}
           onEnsureBibFile={ensureBibFile}
           onDone={(value) => {
             const pos = citationDialog.pos;

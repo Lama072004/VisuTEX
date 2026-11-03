@@ -11,11 +11,13 @@ pub mod core;
 pub mod embedded;
 pub mod files;
 pub mod fonts;
+pub mod history;
 pub mod images;
 pub mod launch;
 pub mod pdf;
 pub mod prepare;
 pub mod preview;
+pub mod references;
 pub mod setup;
 pub mod share;
 pub mod system;
@@ -383,6 +385,87 @@ fn project_root_opt(path: &Option<String>) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
+/// Diagramm (Daten + Art) → Inhalt eines `tikzpicture` (pgfplots), Modell als erste Kommentarzeile.
+#[tauri::command]
+fn chart_to_latex(chart: core::chart::Chart) -> Result<String, String> {
+    core::chart::to_latex(&chart)
+}
+
+/// Diagramm-Modell aus dem Code eines TikZ-Blocks (zum erneuten Bearbeiten).
+#[tauri::command]
+fn chart_from_code(code: String) -> Option<core::chart::Chart> {
+    core::chart::from_code(&code)
+}
+
+/// Tabelle aus eingefügtem Text (aus Excel kopiert, CSV mit `;` oder `,`).
+#[tauri::command]
+fn chart_parse_table(text: String) -> Vec<Vec<String>> {
+    core::chart::parse_table(&text)
+}
+
+// ---------------------------------------------------------------- Versionsverlauf und Vergleich
+
+fn history_dir(app: &AppHandle, document: &str) -> Result<PathBuf, String> {
+    if document.trim().is_empty() {
+        return Err("Versionen gibt es erst, wenn das Dokument gespeichert ist.".into());
+    }
+    Ok(history::store_dir(&data_dir(app)?, document))
+}
+
+/// Versionen eines Dokuments (neueste zuerst).
+#[tauri::command]
+async fn history_list(
+    app: AppHandle,
+    document: String,
+) -> Result<Vec<history::VersionInfo>, String> {
+    let dir = history_dir(&app, &document)?;
+    blocking(move || Ok(history::list(&dir))).await
+}
+
+/// Legt eine Version an (beim Speichern automatisch, mit Namen auf Wunsch des Nutzers).
+#[tauri::command]
+async fn history_snapshot(
+    app: AppHandle,
+    document: String,
+    latex: String,
+    name: Option<String>,
+) -> Result<Option<history::VersionInfo>, String> {
+    let dir = history_dir(&app, &document)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as u64);
+    blocking(move || history::snapshot(&dir, &document, &latex, name.as_deref(), now)).await
+}
+
+#[tauri::command]
+async fn history_read(app: AppHandle, document: String, id: String) -> Result<String, String> {
+    let dir = history_dir(&app, &document)?;
+    blocking(move || history::read(&dir, &id)).await
+}
+
+#[tauri::command]
+async fn history_rename(
+    app: AppHandle,
+    document: String,
+    id: String,
+    name: String,
+) -> Result<history::VersionInfo, String> {
+    let dir = history_dir(&app, &document)?;
+    blocking(move || history::rename(&dir, &id, &name)).await
+}
+
+#[tauri::command]
+async fn history_delete(app: AppHandle, document: String, id: String) -> Result<(), String> {
+    let dir = history_dir(&app, &document)?;
+    blocking(move || history::delete(&dir, &id)).await
+}
+
+/// Vergleich zweier Fassungen (Zeilen, geänderte Zeilen wortweise).
+#[tauri::command]
+async fn compare_texts(old: String, new: String) -> Result<core::diff::TextDiff, String> {
+    blocking(move || Ok(core::diff::compare(&old, &new, core::diff::CONTEXT))).await
+}
+
 /// Skizze (Raster-Modell) → TikZ/CircuiTikZ-Code.
 #[tauri::command]
 fn sketch_to_latex(sketch: core::sketch::Sketch) -> core::sketch::SketchCode {
@@ -540,6 +623,55 @@ async fn analyze_document(document: Value) -> Result<Analysis, String> {
     blocking(move || Ok(analysis::analyze(&document))).await
 }
 
+/// Abgabe-Check: typische Probleme vor der Abgabe (Querverweise, Literatur, Abbildungen,
+/// Gliederung, Platzhalter, Kommentare, überlange Zeilen aus dem letzten Kompilieren).
+#[tauri::command]
+async fn review_document(
+    document: Value,
+    project_root: Option<String>,
+    bibliography: String,
+    compile: Option<core::review::CompileInfo>,
+) -> Result<Vec<core::review::Finding>, String> {
+    let root = project_root_opt(&project_root);
+    blocking(move || {
+        let bibliography = bibliography.trim().to_string();
+        let source = (!bibliography.is_empty())
+            .then(|| {
+                root.as_ref()
+                    .and_then(|root| std::fs::read_to_string(root.join(&bibliography)).ok())
+            })
+            .flatten();
+        let file_exists = |path: &str| match &root {
+            // ungespeichertes Dokument: Bilder liegen eingebettet vor
+            None => true,
+            Some(root) => {
+                let base = root.join(path);
+                base.is_file()
+                    || ["pdf", "png", "jpg", "jpeg", "eps", "svg"]
+                        .iter()
+                        .any(|extension| base.with_extension(extension).is_file())
+            }
+        };
+        let mut findings = core::review::review(&core::review::ReviewInput {
+            document: &document,
+            bibliography: source.as_deref(),
+            file_exists: &file_exists,
+            compile: compile.as_ref(),
+        });
+        // Literaturdatei gewählt, aber nicht vorhanden – statt „keine Literaturdatei gewählt“
+        if !bibliography.is_empty() && source.is_none() {
+            for finding in &mut findings {
+                if finding.code == "citation-no-bibliography" {
+                    finding.code = "bibliography-missing";
+                    finding.detail = bibliography.clone();
+                }
+            }
+        }
+        Ok(findings)
+    })
+    .await
+}
+
 #[tauri::command]
 async fn check_resources(
     latex: String,
@@ -566,6 +698,8 @@ struct CompileResult {
     duration_ms: u64,
     /// Fehlende TeX-Dateien (PDF trotzdem erzeugt)
     missing_files: Vec<String>,
+    /// Überlange Zeilen und zu volle Seiten (für den Abgabe-Check)
+    layout_issues: Vec<core::review::LayoutIssue>,
 }
 
 #[tauri::command]
@@ -620,12 +754,14 @@ async fn compile_document(
             &config,
             &mut progress,
         )?;
-        let stored = pdf::load(output.pdf).map_err(fail)?;
-        Ok::<_, CompileFailure>((stored, output.messages, output.missing_files))
+        let layout_issues = core::review::layout_issues(&output.log);
+        let mut stored = pdf::load(output.pdf).map_err(fail)?;
+        stored.synctex = output.synctex.as_deref().map(core::synctex::parse);
+        Ok::<_, CompileFailure>((stored, output.messages, output.missing_files, layout_issues))
     })
     .await
     .map_err(|error| fail(format!("Interner Fehler: {error}")))??;
-    let (stored, messages, missing_files) = output;
+    let (stored, messages, missing_files, layout_issues) = output;
     let (pdf_id, pages) = state.pdfs.insert(stored);
     Ok(CompileResult {
         pdf_id,
@@ -633,7 +769,39 @@ async fn compile_document(
         messages,
         duration_ms: started.elapsed().as_millis() as u64,
         missing_files,
+        layout_issues,
     })
+}
+
+/// Doppelklick in der PDF-Vorschau → Zeile im kompilierten Dokument (SyncTeX). Punkt in bp ab
+/// links oben.
+#[tauri::command]
+async fn synctex_to_source(
+    state: State<'_, AppState>,
+    pdf_id: u64,
+    page: usize,
+    x: f32,
+    y: f32,
+) -> Result<Option<u32>, String> {
+    let stored = state.pdfs.get(pdf_id)?;
+    Ok(stored
+        .synctex
+        .as_ref()
+        .and_then(|sync| sync.line_at(page, x, y)))
+}
+
+/// „Im PDF zeigen“: Zeile des kompilierten Dokuments → Stelle im PDF (SyncTeX).
+#[tauri::command]
+async fn synctex_to_pdf(
+    state: State<'_, AppState>,
+    pdf_id: u64,
+    line: u32,
+) -> Result<Option<core::synctex::PdfPoint>, String> {
+    let stored = state.pdfs.get(pdf_id)?;
+    Ok(stored
+        .synctex
+        .as_ref()
+        .and_then(|sync| sync.pdf_for_line(line)))
 }
 
 #[tauri::command]
@@ -685,9 +853,15 @@ async fn render_tikz(
         } else {
             ""
         };
+        // Diagramme (Achsen) brauchen pgfplots
+        let plots = if core::chart::uses_pgfplots(&trimmed) {
+            "\\usepackage{pgfplots}\n\\pgfplotsset{compat=1.18}\n"
+        } else {
+            ""
+        };
         let option_text = if options.is_empty() { String::new() } else { format!("[{options}]") };
         let document = format!(
-            "\\documentclass[border=4pt]{{standalone}}\n\\usepackage{{amsmath,amssymb}}\n\\usepackage{{tikz}}\n\\usetikzlibrary{{arrows.meta,positioning,calc,shapes.geometric}}\n{circuit}{addon_preamble}\n\\begin{{document}}\n\\begin{{{environment}}}{option_text}\n{trimmed}\n\\end{{{environment}}}\n\\end{{document}}\n"
+            "\\documentclass[border=4pt]{{standalone}}\n\\usepackage{{amsmath,amssymb}}\n\\usepackage{{tikz}}\n\\usetikzlibrary{{arrows.meta,positioning,calc,shapes.geometric}}\n{circuit}{plots}{addon_preamble}\n\\begin{{document}}\n\\begin{{{environment}}}{option_text}\n{trimmed}\n\\end{{{environment}}}\n\\end{{document}}\n"
         );
         let output = compile::compile(
             CompileRequest {
@@ -1206,6 +1380,33 @@ async fn add_bib_entries(
     blocking(move || merge_into_bib(&bib_path(&project_root, &file)?, &bibtex)).await
 }
 
+/// Literatur per DOI bzw. ISBN nachschlagen (Internet). Liefert einen Vorschlag mit einem
+/// Schlüssel, den die Literaturdatei noch nicht hat; hinzugefügt wird über `add_bib_entries`.
+#[tauri::command]
+async fn lookup_reference(
+    input: String,
+    project_root: Option<String>,
+    file: String,
+) -> Result<references::FoundReference, String> {
+    blocking(move || {
+        let existing: Vec<String> = project_root
+            .as_deref()
+            .filter(|root| !root.is_empty())
+            .and_then(|root| bib_path(root, &file).ok())
+            .filter(|path| path.exists())
+            .and_then(|path| files::read_text(&path).ok())
+            .map(|text| {
+                bibtex::parse(&text)
+                    .into_iter()
+                    .map(|entry| entry.key)
+                    .collect()
+            })
+            .unwrap_or_default();
+        references::lookup(&input, &existing)
+    })
+    .await
+}
+
 #[tauri::command]
 async fn zotero_status() -> Result<zotero::ZoteroStatus, String> {
     blocking(|| Ok(zotero::status())).await
@@ -1388,6 +1589,15 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             slides_read_image,
             slides_compile,
             sketch_from_code,
+            chart_to_latex,
+            chart_from_code,
+            chart_parse_table,
+            history_list,
+            history_snapshot,
+            history_read,
+            history_rename,
+            history_delete,
+            compare_texts,
             sketch_catalog,
             setup_status,
             setup_install,
@@ -1402,6 +1612,9 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             check_resources,
             compile_document,
             render_pdf_page,
+            review_document,
+            synctex_to_source,
+            synctex_to_pdf,
             save_pdf,
             render_tikz,
             render_latex_previews,
@@ -1420,6 +1633,7 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             zotero_status,
             zotero_search,
             zotero_import,
+            lookup_reference,
             addons_list,
             addons_install,
             addons_remove,

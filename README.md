@@ -67,6 +67,15 @@ nach dem Herunterladen sofort und auch ganz ohne Internet.
 
 - Zeichenwerkzeug für **TikZ und CircuiTikZ** mit über 300 Bauteilen und Formen, Anschlüssen, an denen Leitungen andocken,
   Beschriftungen, Werten, Spannungs- und Strompfeilen. Der erzeugte Code erscheint daneben und bleibt bearbeitbar.
+- **Diagramme aus Daten** wie in Word: Säulen, Balken, Linie, Fläche, Punkte, Kreis – Daten eintippen, aus Excel
+  einfügen oder als CSV laden; daraus entsteht `pgfplots`-Code mit Vorschau, per Doppelklick wieder bearbeitbar.
+
+#### Prüfen vor der Abgabe
+- **PDF ↔ Dokument:** Doppelklick ins PDF springt an die Stelle im Dokument, `Strg+Alt+J` zeigt die Cursorstelle im PDF.
+- **Abgabe-Check:** unbekannte Querverweise und Zitate, fehlende Beschriftungen und Bilder, Platzhalter wie `TODO`,
+  übersprungene Gliederungsebenen und über den Rand ragender Text – mit Sprung zur Stelle.
+- **Versionsverlauf und Vergleich:** jedes Speichern legt eine Version an, benannte Versionen („Abgabe“) bleiben;
+  vergleichen (geänderte Wörter hervorgehoben), wiederherstellen oder mit einer beliebigen `.tex`-Datei vergleichen.
 
 #### Präsentationen
 <p align="center"><img src="docs/screenshots/folien.png" alt="Folien-Editor mit Aufzählung, Formel und Formen" width="860"></p>
@@ -77,8 +86,8 @@ nach dem Herunterladen sofort und auch ganz ohne Internet.
 #### Literatur, Teilen und mehr
 <p align="center"><img src="docs/screenshots/teilen.png" alt="Dialog Dokument teilen mit Hinweis auf ungespeicherte Änderungen" width="760"></p>
 
-- **Literatur** über BibTeX/natbib mit **Zotero-Anbindung**; Zitierstile u. a. IEEE und **IEEE (deutsch)**
-  („und“, „Hrsg.“, „S.“ …).
+- **Literatur** über BibTeX/natbib mit **Zotero-Anbindung** und Suche **per DOI oder ISBN**; Zitierstile u. a. IEEE und
+  **IEEE (deutsch)** („und“, „Hrsg.“, „S.“ …).
 - **Teilen** per Rechtsklick auf die Titelleiste: VisuTeX sagt ausdrücklich, welche gespeicherte Fassung geteilt wird,
   und öffnet das Teilen-Fenster von Windows (Linux: E-Mail mit Anhang).
 - **Schnellzugriff** in der Titelleiste frei anpassbar, **Tastenkürzel** frei belegbar, Suchen und Ersetzen, Format
@@ -196,6 +205,16 @@ and all packages are built in – VisuTeX works right after downloading, even en
 
 - Drawing tool for **TikZ and CircuiTikZ** with more than 300 components and shapes, pins where wires snap on, labels,
   values, voltage and current arrows. The generated code is shown alongside and stays editable.
+- **Charts from data** like in Word: column, bar, line, area, scatter, pie – type the data, paste from Excel or load a
+  CSV; VisuTeX generates `pgfplots` code with a preview, editable again by double-clicking.
+
+#### Checking before submission
+- **PDF ↔ document:** double-click in the PDF jumps to the position in the document, `Ctrl+Alt+J` shows the cursor
+  position in the PDF.
+- **Submission check:** unknown cross-references and citations, missing captions and images, placeholders like `TODO`,
+  skipped heading levels and text running into the margin – with a jump to each location.
+- **Version history and comparison:** every save creates a version, named versions (“Submission”) are kept; compare
+  (changed words highlighted), restore, or compare with any `.tex` file.
 
 #### Presentations
 <p align="center"><img src="docs/screenshots/folien.png" alt="Slide editor with bullet list, equation and shapes" width="860"></p>
@@ -206,8 +225,8 @@ and all packages are built in – VisuTeX works right after downloading, even en
 #### References, sharing and more
 <p align="center"><img src="docs/screenshots/teilen.png" alt="Share document dialog with a notice about unsaved changes" width="760"></p>
 
-- **References** via BibTeX/natbib with **Zotero integration**; citation styles including IEEE and **IEEE (German)**
-  (“und”, “Hrsg.”, “S.” …).
+- **References** via BibTeX/natbib with **Zotero integration** and lookup **by DOI or ISBN**; citation styles including
+  IEEE and **IEEE (German)** (“und”, “Hrsg.”, “S.” …).
 - **Sharing** via right-click on the title bar: VisuTeX states explicitly which saved version is shared and opens the
   Windows share window (Linux: email with attachment).
 - Fully customisable **Quick Access Toolbar** in the title bar, freely assignable **keyboard shortcuts**, find and

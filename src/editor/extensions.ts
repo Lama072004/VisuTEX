@@ -56,6 +56,7 @@ import {
 import { Pagination } from "./pagination";
 import { FormattingMarks } from "./formattingMarks";
 import { SelectionHighlight } from "./selectionHighlight";
+import { SyncFlash } from "./syncFlash";
 import { CommentLayout } from "./commentLayout";
 import { LayoutParagraphs } from "./layoutParagraphs";
 import { SearchReplace } from "./search";
@@ -148,6 +149,7 @@ export function appExtensions(): AnyExtension[] {
     LayoutParagraphs,
     ObjectEditKeys,
     SelectionHighlight,
+    SyncFlash,
     ExtraKeys,
   ];
 }

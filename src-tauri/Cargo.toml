@@ -66,6 +66,8 @@ hayro-svg = "0.7"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp", "tiff"] }
 # SVG → PDF beim Einfügen von Vektorgrafiken
 svg2pdf = "0.13"
+# SyncTeX-Datei (.synctex.gz) der TeX-Engine entpacken (PDF ↔ Editor)
+flate2 = "1"
 # Add-ons als ZIP installieren, TeX-Bundle lesen/schreiben
 zip = { version = "8", default-features = false, features = ["deflate"] }
 # Zotero (lokale API / Better BibTeX) – Anfragen aus Rust, kein Browser-CORS;

@@ -16,8 +16,10 @@ import {
   Bold,
   BookA,
   BookMarked,
+  BookmarkPlus,
   BookOpen,
   Braces,
+  ChartColumn,
   ChevronDown,
   CircuitBoard,
   Code2,
@@ -25,10 +27,12 @@ import {
   Columns3,
   Eraser,
   Eye,
+  FileDiff,
   FileText,
   Frame,
   Hash,
   Highlighter,
+  History,
   ImagePlus,
   Images,
   IndentDecrease,
@@ -45,7 +49,10 @@ import {
   MessageSquare,
   MoveVertical,
   Paperclip,
+  ClipboardCheck,
+  LocateFixed,
   Ruler,
+  ScanSearch,
   SquareDashed,
   PaintBucket,
   Paintbrush,
@@ -113,6 +120,7 @@ export type RibbonActions = {
   insertMaketitle: () => void;
   insertAppendix: () => void;
   openSketch: () => void;
+  openChart: () => void;
   insertCodeListing: () => void;
   setTableStyle: (style: "grid" | "booktabs" | "plain") => void;
   /** enumitem-Marke, z. B. `\alph*)`; null = Standard */
@@ -127,6 +135,15 @@ export type RibbonActions = {
   editImage: () => void;
   replaceImage: () => void;
   compile: () => void;
+  /** Cursorstelle im PDF zeigen (SyncTeX) */
+  showInPdf: () => void;
+  /** Abgabe-Check öffnen bzw. aktualisieren */
+  openReview: () => void;
+  openHistory: () => void;
+  saveVersion: () => void;
+  compareWithFile: () => void;
+  /** Zitat-Dialog mit DOI/ISBN-Suche */
+  insertCitationByIdentifier: () => void;
   openAddons: () => void;
   openShortcuts: () => void;
   openSlides: () => void;
@@ -155,7 +172,7 @@ type Props = {
   formatPainterActive: boolean;
 };
 
-type TabId = "start" | "insert" | "layout" | "references" | "view" | "table" | "image" | "addons" | "math";
+type TabId = "start" | "insert" | "layout" | "references" | "review" | "view" | "table" | "image" | "addons" | "math";
 
 const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 const LINE_SPACINGS = ["1", "1.15", "1.5", "2", "2.5", "3"];
@@ -431,6 +448,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
     { id: "insert", label: t("Einfügen") },
     { id: "layout", label: t("Layout") },
     { id: "references", label: t("Referenzen") },
+    { id: "review", label: t("Überprüfen") },
     { id: "view", label: t("Ansicht") },
     ...(addonEntries.length ? [{ id: "addons" as TabId, label: t("Add-ons") }] : []),
     ...(state?.inTable && mode === "visual" ? [{ id: "table" as TabId, label: t("Tabelle"), contextual: true }] : []),
@@ -712,6 +730,7 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         <Button large label={t("Zeichnung")} icon={<PenTool size={22} />} disabled={!visual} onClick={() => actions.insertTikz("tikzpicture")} />
         <Button large label={t("Schaltung")} icon={<CircuitBoard size={22} />} disabled={!visual} onClick={() => actions.insertTikz("circuitikz")} />
         <Button large label={t("Skizze")} icon={<Shapes size={22} />} title={t("Skizzier-Werkzeug: Linien, Formen und Bauteile auf einem Raster zeichnen")} disabled={!visual} onClick={actions.openSketch} />
+        <Button large label={t("Diagramm")} icon={<ChartColumn size={22} />} title={t("Diagramm aus Daten (Säulen, Linie, Kreis …) – Daten eingeben, aus Excel einfügen oder als CSV laden")} disabled={!visual} onClick={actions.openChart} />
       </>
     ));
     add("math", t("Formeln"), (
@@ -956,6 +975,13 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         <Button large label={t("Zitat einfügen")} icon={<BookOpen size={22} />} disabled={!visual} onClick={actions.insertCitation} />
         <Button large label={t("Literaturverzeichnis")} icon={<Library size={22} />} disabled={!visual} onClick={() => actions.insertDirectory("bibliography")} />
         <Stack>
+          <Button
+            label={t("Per DOI/ISBN …")}
+            icon={<ScanSearch size={18} />}
+            title={t("Quelle per DOI oder ISBN nachschlagen und zur Literaturdatei hinzufügen (Internet nötig)")}
+            disabled={!visual}
+            onClick={actions.insertCitationByIdentifier}
+          />
           <Button label={t("Literaturdatei (.bib)")} icon={<FileText size={18} />} onClick={actions.chooseBibliography} />
           <select
             className="ribbon-select"
@@ -981,6 +1007,27 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
         <Button label={t("Fußnote")} icon={<StickyNote size={18} />} disabled={!visual} onClick={actions.insertFootnote} />
         <Button label={t("Abkürzung")} icon={<BookA size={18} />} disabled={!visual} onClick={actions.insertAcronym} />
       </Stack>
+    ));
+  }
+
+  if (activeTab === "review") {
+    add("check", t("Abgabe"), (
+      <Button
+        large
+        label={t("Abgabe-Check")}
+        icon={<ClipboardCheck size={22} />}
+        title={t("Vor der Abgabe prüfen: Querverweise, Literatur, Abbildungen, Gliederung, Platzhalter, überlange Zeilen")}
+        onClick={actions.openReview}
+      />
+    ));
+    add("versions", t("Versionen"), (
+      <>
+        <Button large label={t("Versionsverlauf")} icon={<History size={22} />} title={t("Frühere Fassungen ansehen, vergleichen und wiederherstellen (jedes Speichern legt eine Version an)")} onClick={actions.openHistory} />
+        <Stack>
+          <Button label={t("Version speichern …")} icon={<BookmarkPlus size={16} />} title={t("Aktuellen Stand als benannte Version sichern (z. B. „Abgabe“)")} onClick={actions.saveVersion} />
+          <Button label={t("Mit Datei vergleichen …")} icon={<FileDiff size={16} />} title={t("Aktuellen Stand mit einer anderen .tex-Datei vergleichen")} onClick={actions.compareWithFile} />
+        </Stack>
+      </>
     ));
   }
 
@@ -1012,7 +1059,16 @@ export function Ribbon({ editor, mode, actions, settings, view, onViewChange, ad
       </Stack>
     ));
     add("compile", t("PDF"), (
-      <Button large label={view.compiling ? t("Kompiliere …") : t("Kompilieren")} icon={<Play size={22} />} disabled={view.compiling} onClick={actions.compile} />
+      <>
+        <Button large label={view.compiling ? t("Kompiliere …") : t("Kompilieren")} icon={<Play size={22} />} disabled={view.compiling} onClick={actions.compile} />
+        <Button
+          large
+          label={t("Im PDF zeigen")}
+          icon={<LocateFixed size={22} />}
+          title={t("Cursorstelle im PDF zeigen (Strg+Alt+J) – umgekehrt springt ein Doppelklick ins PDF an die Stelle im Dokument")}
+          onClick={actions.showInPdf}
+        />
+      </>
     ));
     add("extras", t("Extras"), (
       <>

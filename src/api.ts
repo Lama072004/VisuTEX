@@ -21,7 +21,12 @@ export type ExportResult = {
   assets: EmbeddedAsset[];
   warnings: string[];
   missingPackages: string[];
+  /** Zeilen [von, bis] je oberstem Block im fertigen `latex` ([0, 0] = kein Code) – für SyncTeX */
+  blockLines: Array<[number, number]>;
 };
+
+/** Stelle im PDF (Seite ab 0, bp ab links oben) */
+export type PdfPoint = { page: number; x: number; y: number; height: number };
 
 export type SyncResult = {
   document: JSONContent;
@@ -35,7 +40,20 @@ export type SyncResult = {
 export type TexMessage = { line: number | null; message: string; severity: "error" | "warning" };
 export type PageSize = { width: number; height: number };
 /** `missingFiles`: fehlende TeX-Dateien – das PDF wurde trotzdem erzeugt (Nachladen anbieten). */
-export type CompileResult = { pdfId: number; pages: PageSize[]; messages: TexMessage[]; durationMs: number; missingFiles?: string[] };
+/** Überlange Zeile (`hbox`) bzw. zu volle Seite (`vbox`) aus dem TeX-Log */
+export type LayoutIssue = { line: number | null; amount: number; kind: "hbox" | "vbox" };
+export type CompileResult = {
+  pdfId: number;
+  pages: PageSize[];
+  messages: TexMessage[];
+  durationMs: number;
+  missingFiles?: string[];
+  layoutIssues?: LayoutIssue[];
+};
+/** Fund des Abgabe-Checks (Code + Detail, übersetzt in `ReviewPanel`) */
+export type ReviewFinding = { severity: "error" | "warning" | "info"; code: string; detail: string; block: number | null };
+/** Letztes Kompilieren für den Abgabe-Check */
+export type ReviewCompileInfo = { errors: number; layoutIssues: LayoutIssue[]; blockLines: Array<[number, number]> };
 /** `missingFiles`: TeX-Dateien, die weder im Bundle noch im Projekt gefunden wurden (z. B. `siunitx.sty`). */
 export type CompileFailure = { message: string; messages: TexMessage[]; log: string; missingFiles?: string[] };
 
@@ -78,6 +96,38 @@ export type Analysis = {
 
 export type BibEntry = { key: string; entryType: string; title: string; author: string; year: string; container: string; raw: string };
 export type BibMerge = { added: string[]; skipped: string[]; keys: string[] };
+
+/** Per DOI/ISBN gefundene Quelle (Vorschlag, noch nicht in der .bib) */
+export type FoundReference = { key: string; bibtex: string; title: string; author: string; year: string; container: string; source: "doi" | "isbn" };
+
+/** Diagramm aus Daten (Modell wie `core::chart::Chart`) */
+export type ChartKind = "line" | "bar" | "barh" | "scatter" | "area" | "pie";
+export type Chart = {
+  kind: ChartKind;
+  title: string;
+  xLabel: string;
+  yLabel: string;
+  /** Kopfzeile + Datenzeilen; erste Spalte = Kategorien bzw. x-Werte */
+  data: string[][];
+  legend: string;
+  grid: boolean;
+  /** Breite in cm */
+  width: number;
+  stacked: boolean;
+  marks: boolean;
+  smooth: boolean;
+  decimalComma: boolean;
+};
+
+/** Version im Versionsverlauf (`created`: ms seit 1970; `name` leer = automatisch) */
+export type VersionInfo = { id: string; created: number; name: string; words: number; size: number };
+export type DiffSegment = { text: string; changed: boolean };
+export type DiffLine = { kind: "same" | "removed" | "added"; oldLine: number | null; newLine: number | null; segments: DiffSegment[] };
+export type TextDiff = {
+  identical: boolean;
+  hunks: Array<{ lines: DiffLine[] }>;
+  summary: { addedLines: number; removedLines: number; addedWords: number; removedWords: number };
+};
 
 export type ZoteroStatus = { running: boolean; betterBibtex: boolean; localApi: boolean; message: string };
 export type ZoteroItem = { id: string; source: "bbt" | "local"; title: string; authors: string; year: string; itemType: string };
@@ -239,6 +289,13 @@ export const api = {
   checkResources: (latex: string, projectRoot: string | null) =>
     call<MissingResource[]>("check_resources", { latex, projectRoot }),
 
+  /** Abgabe-Check; `compile` = letztes Kompilieren (null: noch nicht kompiliert) */
+  reviewDocument: (document: JSONContent, projectRoot: string | null, bibliography: string, compile: ReviewCompileInfo | null) =>
+    call<ReviewFinding[]>("review_document", { document, projectRoot, bibliography, compile }),
+  /** Doppelklick ins PDF → Zeile im kompilierten Dokument (SyncTeX) */
+  synctexToSource: (pdfId: number, page: number, x: number, y: number) => call<number | null>("synctex_to_source", { pdfId, page, x, y }),
+  /** Zeile im kompilierten Dokument → Stelle im PDF (SyncTeX) */
+  synctexToPdf: (pdfId: number, line: number) => call<PdfPoint | null>("synctex_to_pdf", { pdfId, line }),
   compileDocument: (latex: string, projectRoot: string | null, assets: EmbeddedAsset[], allowOnline: boolean) =>
     call<CompileResult>("compile_document", { latex, projectRoot, assets, allowOnline }),
   renderPdfPage: async (pdfId: number, page: number, scale: number): Promise<Blob> => {
@@ -256,6 +313,20 @@ export const api = {
   sketchToLatex: (sketch: Sketch) => call<{ code: string; environment: string }>("sketch_to_latex", { sketch }),
   sketchFromCode: (code: string) => call<Sketch | null>("sketch_from_code", { code }),
   sketchCatalog: () => call<SketchCatalog>("sketch_catalog"),
+  /** Diagramm → Inhalt eines tikzpicture (pgfplots), Modell als erste Kommentarzeile */
+  chartToLatex: (chart: Chart) => call<string>("chart_to_latex", { chart }),
+  chartFromCode: (code: string) => call<Chart | null>("chart_from_code", { code }),
+  /** Tabelle aus eingefügtem Text (Excel, CSV mit ; oder ,) */
+  chartParseTable: (text: string) => call<string[][]>("chart_parse_table", { text }),
+  /** Versionsverlauf eines gespeicherten Dokuments (neueste zuerst) */
+  historyList: (document: string) => call<VersionInfo[]>("history_list", { document }),
+  /** Version anlegen; null, wenn sich seit der letzten nichts geändert hat */
+  historySnapshot: (document: string, latex: string, name: string | null) => call<VersionInfo | null>("history_snapshot", { document, latex, name }),
+  historyRead: (document: string, id: string) => call<string>("history_read", { document, id }),
+  historyRename: (document: string, id: string, name: string) => call<VersionInfo>("history_rename", { document, id, name }),
+  historyDelete: (document: string, id: string) => call<void>("history_delete", { document, id }),
+  /** Zwei Fassungen vergleichen (Zeilen und Wörter) */
+  compareTexts: (oldText: string, newText: string) => call<TextDiff>("compare_texts", { old: oldText, new: newText }),
   setupStatus: () => call<SetupStatus>("setup_status"),
   setupInstall: (options: InstallOptions) => call<string>("setup_install", { options }),
   setupUsePortable: () => call<void>("setup_use_portable"),
@@ -290,6 +361,8 @@ export const api = {
     call<BibMerge>("add_bib_entries", { projectRoot, file, bibtex }),
   zoteroStatus: () => call<ZoteroStatus>("zotero_status"),
   zoteroSearch: (query: string) => call<ZoteroItem[]>("zotero_search", { query }),
+  /** Literatur per DOI/ISBN nachschlagen (Internet) */
+  lookupReference: (input: string, projectRoot: string | null, file: string) => call<FoundReference>("lookup_reference", { input, projectRoot, file }),
   zoteroImport: (ids: string[], source: string, projectRoot: string, file: string) =>
     call<BibMerge>("zotero_import", { ids, source, projectRoot, file }),
 

@@ -1,12 +1,12 @@
 /**
- * Zitat einfügen/bearbeiten: Einträge der Projekt-.bib durchsuchen, aus Zotero
- * übernehmen (Better BibTeX oder Zotero-7-Local-API, Anfragen laufen in Rust)
+ * Zitat einfügen/bearbeiten: Einträge der Projekt-.bib durchsuchen, per DOI/ISBN nachschlagen,
+ * aus Zotero übernehmen (Better BibTeX oder Zotero-7-Local-API, Anfragen laufen in Rust)
  * oder BibTeX direkt einfügen. Zitiert wird immer mit dem BibTeX-Schlüssel.
  */
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { api, errorText } from "../api";
-import type { BibEntry, ZoteroItem, ZoteroStatus } from "../api";
+import type { BibEntry, FoundReference, ZoteroItem, ZoteroStatus } from "../api";
 import { useT } from "../i18n";
 import { Modal } from "./Dialogs";
 
@@ -16,15 +16,17 @@ type Props = {
   projectRoot: string | null;
   bibFile: string;
   initial: CitationValue | null;
+  /** Anfangs geöffneter Reiter (z. B. „DOI / ISBN“ aus dem Menüband) */
+  initialTab?: CitationTab;
   onEnsureBibFile: () => Promise<string | null>;
   onDone: (value: CitationValue | null) => void;
 };
 
-type Tab = "library" | "zotero" | "bibtex";
+export type CitationTab = "library" | "doi" | "zotero" | "bibtex";
 
-export function CitationDialog({ projectRoot, bibFile, initial, onEnsureBibFile, onDone }: Props) {
+export function CitationDialog({ projectRoot, bibFile, initial, initialTab = "library", onEnsureBibFile, onDone }: Props) {
   const t = useT();
-  const [tab, setTab] = useState<Tab>("library");
+  const [tab, setTab] = useState<CitationTab>(initialTab);
   const [entries, setEntries] = useState<BibEntry[]>([]);
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string[]>(() => (initial?.keys ?? "").split(",").map((key) => key.trim()).filter(Boolean));
@@ -38,6 +40,8 @@ export function CitationDialog({ projectRoot, bibFile, initial, onEnsureBibFile,
   const [zoteroItems, setZoteroItems] = useState<ZoteroItem[]>([]);
   const [zoteroSelected, setZoteroSelected] = useState<string[]>([]);
   const [bibtexText, setBibtexText] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [found, setFound] = useState<FoundReference | null>(null);
 
   const loadEntries = async (file = bibFile) => {
     if (!projectRoot || !file) {
@@ -102,6 +106,41 @@ export function CitationDialog({ projectRoot, bibFile, initial, onEnsureBibFile,
     }
   };
 
+  /** DOI/ISBN nachschlagen (Vorschlag anzeigen, noch nichts speichern). */
+  const lookup = async () => {
+    if (!identifier.trim()) return;
+    setBusy(true);
+    setMessage("");
+    setFound(null);
+    try {
+      setFound(await api.lookupReference(identifier, projectRoot, bibFile));
+    } catch (error) {
+      setMessage(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Gefundene Quelle in die Literaturdatei übernehmen und zum Zitieren auswählen. */
+  const addFound = async () => {
+    const file = await requireBib();
+    if (!file || !projectRoot || !found) return;
+    setBusy(true);
+    try {
+      const merged = await api.addBibEntries(projectRoot, file, found.bibtex);
+      await loadEntries(file);
+      setSelected((current) => [...new Set([...current, ...merged.keys])]);
+      setMessage(merged.added.length ? `${t("Hinzugefügt:")} ${found.key}` : `${found.key} ${t("bereits vorhanden")}`);
+      setFound(null);
+      setIdentifier("");
+      setTab("library");
+    } catch (error) {
+      setMessage(errorText(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const importBibtex = async () => {
     const file = await requireBib();
     if (!file || !projectRoot || !bibtexText.trim()) return;
@@ -145,6 +184,7 @@ export function CitationDialog({ projectRoot, bibFile, initial, onEnsureBibFile,
         <button type="button" className={tab === "library" ? "active" : ""} onClick={() => setTab("library")}>
           {t("Literaturdatei")} {bibFile ? <small>({bibFile})</small> : null}
         </button>
+        <button type="button" className={tab === "doi" ? "active" : ""} onClick={() => setTab("doi")}>{t("DOI / ISBN")}</button>
         <button type="button" className={tab === "zotero" ? "active" : ""} onClick={() => setTab("zotero")}>Zotero</button>
         <button type="button" className={tab === "bibtex" ? "active" : ""} onClick={() => setTab("bibtex")}>{t("BibTeX einfügen")}</button>
       </div>
@@ -244,6 +284,50 @@ export function CitationDialog({ projectRoot, bibFile, initial, onEnsureBibFile,
               {t("In Literaturdatei übernehmen und auswählen")}
             </button>
           </div>
+        </div>
+      )}
+
+      {tab === "doi" && (
+        <div className="citation-doi">
+          <p className="muted">
+            {t("DOI (z. B. 10.1038/nature14539 oder als Link) bzw. ISBN eines Buchs eingeben – VisuTeX holt die Literaturangabe (Internet nötig).")}
+          </p>
+          <form
+            className="search-field"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void lookup();
+            }}
+          >
+            <input
+              autoFocus
+              placeholder={t("DOI oder ISBN")}
+              value={identifier}
+              spellCheck={false}
+              onChange={(event) => setIdentifier(event.currentTarget.value)}
+            />
+            <button type="submit" disabled={busy || !identifier.trim()}>
+              {busy ? t("Suche …") : t("Suchen")}
+            </button>
+          </form>
+          {found && (
+            <div className="found-reference">
+              <strong>{found.title || t("(ohne Titel)")}</strong>
+              <span>{[found.author, found.container, found.year].filter(Boolean).join(" · ")}</span>
+              <span className="muted">
+                {t("Schlüssel")}: <code>{found.key}</code> · {found.source === "doi" ? "DOI" : "ISBN"}
+              </span>
+              <details>
+                <summary>BibTeX</summary>
+                <pre className="code-input">{found.bibtex}</pre>
+              </details>
+              <div className="button-row">
+                <button type="button" className="primary" disabled={busy} onClick={() => void addFound()}>
+                  {t("Zur Literaturdatei hinzufügen")}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

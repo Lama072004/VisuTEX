@@ -11,12 +11,16 @@
 //! - `analysis`: Labels, Zitate und Statistik für Dialoge und Statusleiste
 //! - `addon`: Manifest der deklarativen Add-ons
 //! - `slides`: Folien-Editor (Datenmodell, Export nach LaTeX-Beamer)
+//! - `diff`: Vergleich zweier Fassungen (Zeilen und Wörter) für Versionsverlauf und Vergleich
 
 pub mod addon;
 pub mod analysis;
 pub mod bibtex;
+pub mod chart;
+pub mod diff;
 pub mod escape;
 pub mod export;
+pub mod identifiers;
 pub mod import;
 pub mod includes;
 pub mod languages;
@@ -24,8 +28,10 @@ pub mod macros;
 pub mod markers;
 pub mod preamble;
 pub mod project;
+pub mod review;
 pub mod settings;
 pub mod sketch;
 pub mod sketch_catalog;
 pub mod slides;
 pub mod support;
+pub mod synctex;
