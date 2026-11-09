@@ -5,13 +5,15 @@
 use hayro::hayro_interpret::InterpreterSettings;
 use hayro::hayro_syntax::Pdf;
 use hayro::vello_cpu::color::palette::css::WHITE;
-use hayro::{render, RenderCache, RenderSettings};
+use hayro::{render, PixmapSettings, RenderCache, RenderSettings};
 use serde::Serialize;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-/// Höchstens so viele PDFs bleiben im Speicher (älteste werden verworfen).
-const MAX_DOCUMENTS: usize = 6;
+/// Höchstens so viele PDFs bleiben im Speicher (älteste werden verworfen). Je PDF liegen Bytes,
+/// geparste Struktur und SyncTeX-Daten im RAM – bei einer Abschlussarbeit schnell 10–30 MB.
+/// Drei reichen: aktuelles Dokument, vorheriger Stand (noch angezeigt) und Folien/Export.
+const MAX_DOCUMENTS: usize = 3;
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -84,6 +86,17 @@ impl PdfStore {
 
 /// Rendert eine Seite als PNG. `scale` = Pixel je PostScript-Punkt (1.0 = 72 dpi).
 pub fn render_page_png(stored: &StoredPdf, page: usize, scale: f32) -> Result<Vec<u8>, String> {
+    render_pixmap(stored, page, scale)?
+        .into_png()
+        .map_err(|error| format!("PNG konnte nicht erzeugt werden: {error:?}"))
+}
+
+/// Rendert eine Seite als Rasterbild (RGBA, weißer Hintergrund).
+fn render_pixmap(
+    stored: &StoredPdf,
+    page: usize,
+    scale: f32,
+) -> Result<hayro::vello_cpu::Pixmap, String> {
     let pages = stored.pdf.pages();
     let page = pages
         .get(page)
@@ -94,16 +107,19 @@ pub fn render_page_png(stored: &StoredPdf, page: usize, scale: f32) -> Result<Ve
         return Err("Die angeforderte Vorschau ist zu groß.".into());
     }
     let cache = RenderCache::new();
-    let settings = RenderSettings {
+    let settings = RenderSettings::default();
+    let pixmap_settings = PixmapSettings {
         x_scale: scale,
         y_scale: scale,
         bg_color: WHITE,
-        ..Default::default()
     };
-    let pixmap = render(page, &cache, &InterpreterSettings::default(), &settings);
-    pixmap
-        .into_png()
-        .map_err(|error| format!("PNG konnte nicht erzeugt werden: {error:?}"))
+    Ok(render(
+        page,
+        &cache,
+        &InterpreterSettings::default(),
+        &settings,
+        &pixmap_settings,
+    ))
 }
 
 // ------------------------------------------------------------------ Vektorgrafik (SVG)
@@ -132,6 +148,25 @@ pub fn render_page_svg(stored: &StoredPdf, page: usize) -> Result<String, String
     ))
 }
 
+/// Rendert eine ganze Seite als SVG mit weißem Hintergrund (PDF-Vorschau im rechten Bereich).
+pub fn render_page_svg_white(stored: &StoredPdf, page: usize) -> Result<String, String> {
+    let pages = stored.pdf.pages();
+    let page = pages
+        .get(page)
+        .ok_or_else(|| format!("Seite {} existiert nicht.", page + 1))?;
+    let cache = hayro_svg::RenderCache::new();
+    let settings = hayro_svg::SvgRenderSettings {
+        bg_color: [255, 255, 255, 255],
+        ..Default::default()
+    };
+    Ok(hayro_svg::convert(
+        page,
+        &cache,
+        &InterpreterSettings::default(),
+        &settings,
+    ))
+}
+
 /// Ganze Seite als Ausschnitt.
 pub fn page_view(stored: &StoredPdf, page: usize) -> Option<SvgView> {
     stored.pages.get(page).map(|size| SvgView {
@@ -151,14 +186,14 @@ pub fn content_view(
 ) -> Result<Option<SvgView>, String> {
     let full =
         page_view(stored, page).ok_or_else(|| format!("Seite {} existiert nicht.", page + 1))?;
-    let png = render_page_png(stored, page, 1.0)?;
-    let image = image::load_from_memory(&png)
-        .map_err(|error| format!("Vorschau konnte nicht gelesen werden: {error}"))?
-        .to_rgba8();
+    // Pixel direkt auswerten (früher: als PNG kodiert und gleich wieder dekodiert)
+    let pixmap = render_pixmap(stored, page, 1.0)?;
+    let (width, height) = (u32::from(pixmap.width()), u32::from(pixmap.height()));
     let (mut left, mut top, mut right, mut bottom) = (u32::MAX, u32::MAX, 0, 0);
-    for (x, y, pixel) in image.enumerate_pixels() {
-        let [r, g, b, a] = pixel.0;
+    for (index, pixel) in pixmap.data_as_u8_slice().chunks_exact(4).enumerate() {
+        let [r, g, b, a] = [pixel[0], pixel[1], pixel[2], pixel[3]];
         if a > 0 && (r < 245 || g < 245 || b < 245) {
+            let (x, y) = (index as u32 % width.max(1), index as u32 / width.max(1));
             left = left.min(x);
             top = top.min(y);
             right = right.max(x + 1);
@@ -169,8 +204,8 @@ pub fn content_view(
         return Ok(None);
     }
     // Pixel → Punkte (Skalierung 1); Rasterbild und Seite können um Rundung abweichen
-    let sx = full.width / image.width().max(1) as f32;
-    let sy = full.height / image.height().max(1) as f32;
+    let sx = full.width / width.max(1) as f32;
+    let sy = full.height / height.max(1) as f32;
     let x = (left as f32 * sx - margin).max(0.0);
     let y = (top as f32 * sy - margin).max(0.0);
     let right = (right as f32 * sx + margin).min(full.width);

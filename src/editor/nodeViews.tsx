@@ -742,19 +742,32 @@ function useDocumentEntries(editor: ReactNodeViewProps["editor"], kind: string) 
           const short = String(child.attrs.short || child.attrs.key);
           if (!acronyms.has(short)) acronyms.set(short, String(child.attrs.long ?? ""));
         }
-        return true;
+        // Nur Abkürzungen stehen im Text – sonst nicht in Absätze hinabsteigen
+        return kind === "acronyms" || !child.isTextblock;
       });
       if (kind === "acronyms") {
         [...acronyms.entries()]
           .sort(([left], [right]) => left.localeCompare(right))
           .forEach(([short, long]) => result.push({ level: 1, number: short, text: long }));
       }
-      setEntries(result);
+      // Nur bei echter Änderung neu rendern (sonst bei jedem Tastendruck)
+      const key = JSON.stringify(result);
+      if (key !== last) {
+        last = key;
+        setEntries(result);
+      }
+    };
+    let last = "";
+    let timer: number | undefined;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(compute, 250);
     };
     compute();
-    editor.on("update", compute);
+    editor.on("update", schedule);
     return () => {
-      editor.off("update", compute);
+      window.clearTimeout(timer);
+      editor.off("update", schedule);
     };
   }, [editor, kind]);
   return entries;

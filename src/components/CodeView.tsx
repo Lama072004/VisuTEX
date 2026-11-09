@@ -92,7 +92,8 @@ export default function CodeView({ value, onChange, theme, messages, revealLine,
           endColumn: model.getLineMaxColumn(message.line as number),
         })),
     );
-  }, [messages, value]);
+    // nur bei neuen Meldungen (Kompilieren) – nicht bei jedem Tastendruck; Monaco verschiebt Markierungen selbst
+  }, [messages]);
 
   useEffect(() => {
     const editor = editorRef.current;

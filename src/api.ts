@@ -80,7 +80,16 @@ export type OpenedProject = {
   temporary: boolean;
 };
 
-export type SavedFile = { root: string; path: string; stamp: FileStamp | null; missingFiles: string[] };
+export type SavedFile = {
+  root: string;
+  path: string;
+  stamp: FileStamp | null;
+  missingFiles: string[];
+  /** beim Speichern angelegte Version (Projektdatei) */
+  version?: VersionInfo | null;
+  /** Version konnte nicht angelegt werden (Speichern hat geklappt) */
+  versionError?: string | null;
+};
 
 export type LabelInfo = { label: string; kind: "heading" | "figure" | "table" | "equation" | "drawing" | "raw"; title: string };
 export type OutlineEntry = { level: number; title: string; blockIndex: number };
@@ -120,7 +129,11 @@ export type Chart = {
 };
 
 /** Version im Versionsverlauf (`created`: ms seit 1970; `name` leer = automatisch) */
-export type VersionInfo = { id: string; created: number; name: string; words: number; size: number };
+export type VersionInfo = { id: string; created: number; name: string; words: number; size: number; files?: Record<string, string> };
+/** Ablage des Verlaufs: in der Projektdatei bzw. für .tex-Dateien App-Daten / neben dem Dokument / eigener Ordner */
+export type VersionStore =
+  | { kind: "project"; path: string }
+  | { kind: "file"; path: string; location: "app" | "beside" | "custom"; dir?: string };
 export type DiffSegment = { text: string; changed: boolean };
 export type DiffLine = { kind: "same" | "removed" | "added"; oldLine: number | null; newLine: number | null; segments: DiffSegment[] };
 export type TextDiff = {
@@ -302,6 +315,7 @@ export const api = {
     const bytes = await call<ArrayBuffer>("render_pdf_page", { pdfId, page, scale });
     return new Blob([bytes], { type: "image/png" });
   },
+  renderPdfPageSvg: (pdfId: number, page: number) => call<string>("render_pdf_page_svg", { pdfId, page }),
   savePdf: (pdfId: number, path: string) => call<void>("save_pdf", { pdfId, path }),
   renderTikz: (code: string, environment: string, options: string, allowOnline: boolean) =>
     call<string>("render_tikz", { code, environment, options, allowOnline }),
@@ -319,12 +333,22 @@ export const api = {
   /** Tabelle aus eingefügtem Text (Excel, CSV mit ; oder ,) */
   chartParseTable: (text: string) => call<string[][]>("chart_parse_table", { text }),
   /** Versionsverlauf eines gespeicherten Dokuments (neueste zuerst) */
-  historyList: (document: string) => call<VersionInfo[]>("history_list", { document }),
+  historyList: (store: VersionStore) => call<VersionInfo[]>("history_list", { store }),
+  historyLocation: (store: VersionStore) => call<string>("history_location", { store }),
   /** Version anlegen; null, wenn sich seit der letzten nichts geändert hat */
-  historySnapshot: (document: string, latex: string, name: string | null) => call<VersionInfo | null>("history_snapshot", { document, latex, name }),
-  historyRead: (document: string, id: string) => call<string>("history_read", { document, id }),
-  historyRename: (document: string, id: string, name: string) => call<VersionInfo>("history_rename", { document, id, name }),
-  historyDelete: (document: string, id: string) => call<void>("history_delete", { document, id }),
+  historySnapshot: (store: VersionStore, latex: string, name: string | null, root: string | null) =>
+    call<VersionInfo | null>("history_snapshot", { store, latex, name, root }),
+  historyRead: (store: VersionStore, id: string) => call<string>("history_read", { store, id }),
+  /** Bilder/Literatur einer Version zurück in den Projektordner (nur abweichende) */
+  historyRestoreFiles: (store: VersionStore, id: string, root: string) => call<string[]>("history_restore_files", { store, id, root }),
+  historyRename: (store: VersionStore, id: string, name: string) => call<VersionInfo>("history_rename", { store, id, name }),
+  historyDelete: (store: VersionStore, id: string) => call<void>("history_delete", { store, id }),
+  /** LaTeX-Projekt als ZIP (für Overleaf/andere Editoren); gibt fehlende Dateien zurück */
+  exportLatexZip: (path: string, latex: string, assets: EmbeddedAsset[], sourceRoot: string | null) =>
+    call<string[]>("export_latex_zip", { path, latex, assets, sourceRoot }),
+  /** Kopie der Projektdatei: ohne Verlauf bzw. als reines LaTeX-ZIP (target null: temporär zum Teilen) */
+  projectCopy: (path: string, target: string | null, keepVersions: boolean, keepMeta: boolean) =>
+    call<string>("project_copy", { path, target, keepVersions, keepMeta }),
   /** Zwei Fassungen vergleichen (Zeilen und Wörter) */
   compareTexts: (oldText: string, newText: string) => call<TextDiff>("compare_texts", { old: oldText, new: newText }),
   setupStatus: () => call<SetupStatus>("setup_status"),
@@ -344,8 +368,15 @@ export const api = {
   newProject: (template: string | null, addon: string | null, language: string | null = null) =>
     call<OpenedProject>("new_project", { template, addon, language }),
   loadProject: (path: string) => call<OpenedProject>("load_project", { path }),
-  saveProject: (path: string, project: Project, sourceRoot: string | null) =>
-    call<SavedFile>("save_project", { path, project, sourceRoot }),
+  /** Projektdatei (.visutex) speichern – mit `latex` als Container (LaTeX + Projektdateien + Verlauf) */
+  saveProject: (
+    path: string,
+    project: Project,
+    sourceRoot: string | null,
+    latex: string | null = null,
+    versions: { include: boolean; name?: string | null } | null = null,
+    previousPath: string | null = null,
+  ) => call<SavedFile>("save_project", { path, project, sourceRoot, latex, versions, previousPath }),
   exportTex: (path: string, latex: string, assets: EmbeddedAsset[], sourceRoot: string | null) =>
     call<SavedFile>("export_tex", { path, latex, assets, sourceRoot }),
   fileStamp: (path: string) => call<FileStamp | null>("file_stamp", { path }),

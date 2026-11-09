@@ -67,6 +67,20 @@ Die Debug-Build stellt im Fenster `window.__visutex` bereit (Editor, Zustand, Ak
 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223` gestartet, lässt sich das Fenster über das
 Chrome-DevTools-Protokoll steuern (Skripte ausführen, Screenshots) – so werden Knöpfe, Skizze und Folien Ende-zu-Ende geprüft.
 
+**Screenshots für README/Doku neu erzeugen** (`docs/screenshots/*.png`, 1600 × 1000, helles Design):
+
+```bash
+npm run dev                                                    # Vite (Port 1420)
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223 src-tauri/target/debug/visutex.exe
+node scripts/screenshots.mjs                                   # alle; oder z. B. diagramm,versionen
+```
+
+Das Skript legt ein Beispieldokument (RC-Tiefpass mit Tabelle, Formeln, Skizze, Diagramm, Literatur) in einem neutralen
+Ordner an (`C:/Users/Public/Documents/VisuTeX-Beispiel` bzw. Temp), fährt alle Ansichten ab und stellt danach Design,
+„Zuletzt verwendet“ und Wiederherstellungsdaten wieder her; Beispielordner und Arbeitsdaten werden gelöscht. „Literatur
+per DOI“ braucht Internet. `einrichtung.png` erscheint nur in der nicht installierten Release-EXE (Pfad mit dem
+Benutzernamen vor der Aufnahme neutralisieren).
+
 ## Werkzeuge
 
 | Befehl (in `src-tauri`) | Zweck |

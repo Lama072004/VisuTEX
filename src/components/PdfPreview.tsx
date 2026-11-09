@@ -1,5 +1,5 @@
 /**
- * PDF-Vorschau: Seiten werden in Rust (hayro) als PNG gerendert und nur bei
+ * PDF-Vorschau: Seiten werden in Rust (hayro) als SVG (Vektor, Rückfall PNG) gerendert und nur bei
  * Sichtbarkeit angefordert. Kein PDF-Viewer/iframe im WebView nötig.
  * Doppelklick springt an die Stelle im Dokument (SyncTeX); „Im PDF zeigen“ scrollt hierher
  * und markiert die Stelle kurz (`reveal`).
@@ -45,12 +45,19 @@ function PageImage({ pdfId, page, width, height, scale, cssScale, marker, title,
     return () => observer.disconnect();
   }, []);
   useEffect(() => {
-    if (!visible) return;
+    // Weit außerhalb des Sichtbereichs: Bild freigeben (sonst bleiben alle je gesehenen Seiten im Speicher)
+    if (!visible) {
+      setUrl("");
+      return;
+    }
     let cancelled = false;
     let objectUrl = "";
     const timer = window.setTimeout(() => {
+      // Vektor (SVG) – skaliert über die CSS-Größe; bei Fehler Rückfall auf PNG
       void api
-        .renderPdfPage(pdfId, page, scale)
+        .renderPdfPageSvg(pdfId, page)
+        .then((svg) => new Blob([svg], { type: "image/svg+xml" }))
+        .catch(() => api.renderPdfPage(pdfId, page, scale))
         .then((blob) => {
           if (cancelled) return;
           objectUrl = URL.createObjectURL(blob);
@@ -63,7 +70,8 @@ function PageImage({ pdfId, page, width, height, scale, cssScale, marker, title,
       window.clearTimeout(timer);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [visible, pdfId, page, scale]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- scale nur für den PNG-Rückfall
+  }, [visible, pdfId, page]);
   return (
     <div
       className="pdf-page"
@@ -132,7 +140,8 @@ export function PdfPreview({ status, onCompile, onSavePdf, onMessageClick, onPag
     setFitWidth(false);
     setZoom((value) => Math.min(4, Math.max(0.3, (fitWidth ? cssScale / (96 / 72) : value) + direction * 0.1)));
   });
-  const renderScale = Math.min(6, cssScale * (window.devicePixelRatio || 1));
+  // In Viertel-Schritten: Beim Ziehen des Teilers nicht jede Seite bei jedem Pixel neu rendern (CSS skaliert dazwischen)
+  const renderScale = Math.min(6, Math.ceil(cssScale * (window.devicePixelRatio || 1) * 4) / 4);
 
   // „Im PDF zeigen“: Stelle ins obere Drittel scrollen (Markierung zeichnet die Seite)
   useEffect(() => {

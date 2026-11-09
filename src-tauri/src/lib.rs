@@ -7,6 +7,7 @@
 
 pub mod addons;
 pub mod compile;
+pub mod container;
 pub mod core;
 pub mod embedded;
 pub mod files;
@@ -405,59 +406,222 @@ fn chart_parse_table(text: String) -> Vec<Vec<String>> {
 
 // ---------------------------------------------------------------- Versionsverlauf und Vergleich
 
-fn history_dir(app: &AppHandle, document: &str) -> Result<PathBuf, String> {
-    if document.trim().is_empty() {
+/// Wo der Verlauf eines Dokuments liegt.
+/// - `project`: Projektdatei (.visutex-Container) – Arbeitskopie im lokalen App-Datenordner,
+///   beim Speichern in die Datei gepackt (reist mit der Datei)
+/// - `file`: einzelne .tex-Datei – `location`: `app` (App-Datenordner), `beside` (Ordner
+///   `.visutex-versionen` neben dem Dokument) oder `custom` (`dir`)
+#[derive(Clone, Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+enum VersionStore {
+    Project {
+        path: String,
+    },
+    File {
+        path: String,
+        #[serde(default)]
+        location: String,
+        #[serde(default)]
+        dir: Option<String>,
+    },
+}
+
+fn local_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(root) = setup::sandbox() {
+        return Ok(root.join("daten-lokal"));
+    }
+    app.path()
+        .app_local_data_dir()
+        .map_err(|error| format!("Datenordner nicht verfügbar: {error}"))
+}
+
+fn version_dir(app: &AppHandle, store: &VersionStore) -> Result<PathBuf, String> {
+    let (VersionStore::Project { path } | VersionStore::File { path, .. }) = store;
+    if path.trim().is_empty() {
         return Err("Versionen gibt es erst, wenn das Dokument gespeichert ist.".into());
     }
-    Ok(history::store_dir(&data_dir(app)?, document))
+    let document = PathBuf::from(path);
+    let stem = document
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| "dokument".into());
+    Ok(match store {
+        VersionStore::Project { .. } => {
+            container::work_dir(&local_data_dir(app)?, &document).join("versionen")
+        }
+        VersionStore::File { location, dir, .. } => match (location.as_str(), dir) {
+            ("beside", _) => parent_dir(&document)?.join(".visutex-versionen").join(stem),
+            ("custom", Some(dir)) if !dir.trim().is_empty() => {
+                PathBuf::from(dir).join(format!("{stem}-{}", history::path_key(path)))
+            }
+            _ => history::store_dir(&local_data_dir(app)?, path),
+        },
+    })
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_millis() as u64)
+}
+
+/// Projektdateien, die zu einer Version gehören (Bilder, Literatur, Teildateien …).
+fn version_files(latex: &str, root: &Path) -> Vec<(String, PathBuf)> {
+    files::local_resource_files(latex, root)
+        .into_iter()
+        .map(|relative| {
+            let path = root.join(&relative);
+            (relative, path)
+        })
+        .collect()
+}
+
+/// Ordner des Verlaufs (für die Anzeige „Gespeichert in …“).
+#[tauri::command]
+fn history_location(app: AppHandle, store: VersionStore) -> Result<String, String> {
+    Ok(version_dir(&app, &store)?.display().to_string())
 }
 
 /// Versionen eines Dokuments (neueste zuerst).
 #[tauri::command]
 async fn history_list(
     app: AppHandle,
-    document: String,
+    store: VersionStore,
 ) -> Result<Vec<history::VersionInfo>, String> {
-    let dir = history_dir(&app, &document)?;
+    let dir = version_dir(&app, &store)?;
     blocking(move || Ok(history::list(&dir))).await
 }
 
-/// Legt eine Version an (beim Speichern automatisch, mit Namen auf Wunsch des Nutzers).
+/// Legt eine Version an (beim Speichern automatisch, mit Namen auf Wunsch des Nutzers);
+/// `root`: Projektordner – dessen Bilder/Literatur gehören mit zur Version.
 #[tauri::command]
 async fn history_snapshot(
     app: AppHandle,
-    document: String,
+    store: VersionStore,
     latex: String,
     name: Option<String>,
+    root: Option<String>,
 ) -> Result<Option<history::VersionInfo>, String> {
-    let dir = history_dir(&app, &document)?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_millis() as u64);
-    blocking(move || history::snapshot(&dir, &document, &latex, name.as_deref(), now)).await
+    let dir = version_dir(&app, &store)?;
+    let (VersionStore::Project { path } | VersionStore::File { path, .. }) = store;
+    blocking(move || {
+        let files = project_root_opt(&root)
+            .map(|root| version_files(&latex, &root))
+            .unwrap_or_default();
+        history::snapshot(&dir, &path, &latex, &files, name.as_deref(), now_ms())
+    })
+    .await
 }
 
 #[tauri::command]
-async fn history_read(app: AppHandle, document: String, id: String) -> Result<String, String> {
-    let dir = history_dir(&app, &document)?;
+async fn history_read(app: AppHandle, store: VersionStore, id: String) -> Result<String, String> {
+    let dir = version_dir(&app, &store)?;
     blocking(move || history::read(&dir, &id)).await
+}
+
+/// Bilder/Literatur einer Version zurück in den Projektordner (nur abweichende Dateien).
+#[tauri::command]
+async fn history_restore_files(
+    app: AppHandle,
+    store: VersionStore,
+    id: String,
+    root: String,
+) -> Result<Vec<String>, String> {
+    let dir = version_dir(&app, &store)?;
+    blocking(move || history::restore_files(&dir, &id, Path::new(&root))).await
 }
 
 #[tauri::command]
 async fn history_rename(
     app: AppHandle,
-    document: String,
+    store: VersionStore,
     id: String,
     name: String,
 ) -> Result<history::VersionInfo, String> {
-    let dir = history_dir(&app, &document)?;
+    let dir = version_dir(&app, &store)?;
     blocking(move || history::rename(&dir, &id, &name)).await
 }
 
 #[tauri::command]
-async fn history_delete(app: AppHandle, document: String, id: String) -> Result<(), String> {
-    let dir = history_dir(&app, &document)?;
+async fn history_delete(app: AppHandle, store: VersionStore, id: String) -> Result<(), String> {
+    let dir = version_dir(&app, &store)?;
     blocking(move || history::delete(&dir, &id)).await
+}
+
+/// Kopie der Projektdatei zum Weitergeben: ohne Versionsverlauf bzw. als reines LaTeX-Projekt-ZIP
+/// (für Overleaf und andere Editoren). `target`: leer = temporäre Datei (zum Teilen).
+#[tauri::command]
+async fn project_copy(
+    app: AppHandle,
+    path: String,
+    target: Option<String>,
+    keep_versions: bool,
+    keep_meta: bool,
+) -> Result<String, String> {
+    let temporary = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| format!("Cache-Ordner nicht verfügbar: {error}"))?
+        .join("teilen");
+    blocking(move || {
+        let source = PathBuf::from(&path);
+        if !container::is_container(&source) {
+            return Err("Bitte zuerst als VisuTeX-Projekt speichern.".into());
+        }
+        let target = match target.filter(|target| !target.trim().is_empty()) {
+            Some(target) => PathBuf::from(target),
+            None => {
+                let _ = std::fs::remove_dir_all(&temporary);
+                std::fs::create_dir_all(&temporary).map_err(|error| error.to_string())?;
+                temporary.join(source.file_name().ok_or("Ungültiger Dateiname.")?)
+            }
+        };
+        container::copy_filtered(&source, &target, keep_versions, keep_meta)?;
+        Ok(target.display().to_string())
+    })
+    .await
+}
+
+/// LaTeX-Projekt als ZIP für Overleaf und andere Editoren: `.tex` + Bilder/Literatur/Teildateien,
+/// ohne VisuTeX-Daten. Gibt nicht gefundene Dateien zurück.
+#[tauri::command]
+async fn export_latex_zip(
+    path: String,
+    latex: String,
+    assets: Vec<EmbeddedAsset>,
+    source_root: Option<String>,
+) -> Result<Vec<String>, String> {
+    blocking(move || {
+        let target = PathBuf::from(&path);
+        let root = project_root_opt(&source_root).ok_or("Kein Projektordner vorhanden.")?;
+        files::write_assets(&root, &assets)?;
+        // eigene TeX-Dateien von VisuTeX (z. B. deutscher IEEE-Stil) mitliefern
+        core::support::write_files(&latex, &root, false)?;
+        let list = files::local_resource_files(&latex, &root);
+        let staging = target.with_file_name(format!(
+            ".~{}.tmp.zip",
+            target
+                .file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_default()
+        ));
+        let missing = container::write(
+            &staging,
+            &container::Contents {
+                main_name: &container::main_name(&target),
+                latex: &latex,
+                project_json: "{}",
+                root: &root,
+                files: &list,
+                versions: None,
+            },
+        )?;
+        let result = container::copy_filtered(&staging, &target, false, false);
+        let _ = std::fs::remove_file(&staging);
+        result?;
+        Ok(missing)
+    })
+    .await
 }
 
 /// Vergleich zweier Fassungen (Zeilen, geänderte Zeilen wortweise).
@@ -816,6 +980,17 @@ async fn render_pdf_page(
     Ok(tauri::ipc::Response::new(png))
 }
 
+/// Ganze PDF-Seite als SVG-Text (Vektor, weißer Hintergrund).
+#[tauri::command]
+async fn render_pdf_page_svg(
+    state: State<'_, AppState>,
+    pdf_id: u64,
+    page: usize,
+) -> Result<String, String> {
+    let stored = state.pdfs.get(pdf_id)?;
+    blocking(move || pdf::render_page_svg_white(&stored, page)).await
+}
+
 #[tauri::command]
 async fn save_pdf(state: State<'_, AppState>, pdf_id: u64, path: String) -> Result<(), String> {
     let stored = state.pdfs.get(pdf_id)?;
@@ -1027,8 +1202,17 @@ async fn new_project(
 #[tauri::command]
 async fn load_project(app: AppHandle, path: String) -> Result<OpenedProject, String> {
     let handle = app.clone();
+    let local = local_data_dir(&app)?;
     blocking(move || {
         let path = PathBuf::from(path);
+        // Projektdatei als Container (ZIP wie .docx): in den Arbeitsordner entpacken
+        if container::is_container(&path) {
+            let work = container::work_dir(&local, &path);
+            let root = work.join("dateien");
+            let json = container::extract(&path, &root, &work.join("versionen"))?;
+            let loaded = project::parse_project(&json)?;
+            return finish_opened(&handle, loaded, root, Some(path), "visutex", false);
+        }
         let root = parent_dir(&path)?;
         let text = files::read_text(&path)?;
         let is_tex = path
@@ -1086,6 +1270,20 @@ struct SavedFile {
     path: String,
     stamp: Option<FileStamp>,
     missing_files: Vec<String>,
+    /// beim Speichern angelegte Version (Projektdatei)
+    version: Option<history::VersionInfo>,
+    /// Version konnte nicht angelegt werden (Speichern selbst hat geklappt)
+    version_error: Option<String>,
+}
+
+/// Versionsverlauf beim Speichern einer Projektdatei.
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct SaveVersions {
+    /// Verlauf in die Projektdatei packen (sonst nur auf diesem Computer)
+    include: bool,
+    /// Name der Version (*Version speichern …*)
+    name: Option<String>,
 }
 
 #[tauri::command]
@@ -1094,8 +1292,12 @@ async fn save_project(
     path: String,
     project: Value,
     source_root: Option<String>,
+    latex: Option<String>,
+    versions: Option<SaveVersions>,
+    previous_path: Option<String>,
 ) -> Result<SavedFile, String> {
     let handle = app.clone();
+    let local = local_data_dir(&app)?;
     blocking(move || {
         let path = PathBuf::from(path);
         let root = parent_dir(&path)?;
@@ -1118,6 +1320,71 @@ async fn save_project(
         if project.get("lastMode").and_then(Value::as_str) == Some("code") {
             model.last_mode = "code".into();
         }
+        // Projektdatei als Container (wie .docx): LaTeX + Projektdateien + Verlauf in einer Datei
+        if let Some(latex) = latex {
+            let source = project_root_opt(&source_root).unwrap_or(root);
+            let options = versions.unwrap_or_default();
+            let versions_dir = container::work_dir(&local, &path).join("versionen");
+            // Speichern unter: bisherigen Verlauf mitnehmen
+            if let Some(previous) =
+                previous_path.filter(|previous| *previous != path.to_string_lossy())
+            {
+                if !versions_dir.join("index.json").is_file() {
+                    let previous_path = PathBuf::from(&previous);
+                    let candidates = [
+                        container::work_dir(&local, &previous_path).join("versionen"),
+                        history::store_dir(&local, &previous),
+                    ];
+                    if let Some(found) = candidates
+                        .iter()
+                        .find(|dir| dir.join("index.json").is_file())
+                    {
+                        history::copy_store(found, &versions_dir)?;
+                    }
+                }
+            }
+            let mut list = files::local_resource_files(&latex, &source);
+            for file in project::referenced_files(&model.document, &model.settings) {
+                if !list.contains(&file) && source.join(&file).is_file() {
+                    list.push(file);
+                }
+            }
+            let snapshot_files: Vec<(String, PathBuf)> = list
+                .iter()
+                .map(|relative| (relative.clone(), source.join(relative)))
+                .collect();
+            let (version, version_error) = match history::snapshot(
+                &versions_dir,
+                &path.to_string_lossy(),
+                &latex,
+                &snapshot_files,
+                options.name.as_deref(),
+                now_ms(),
+            ) {
+                Ok(version) => (version, None),
+                Err(error) => (None, Some(error)),
+            };
+            let missing_files = container::write(
+                &path,
+                &container::Contents {
+                    main_name: &container::main_name(&path),
+                    latex: &latex,
+                    project_json: &project::serialize_project(&model)?,
+                    root: &source,
+                    files: &list,
+                    versions: options.include.then_some(versions_dir.as_path()),
+                },
+            )?;
+            allow_asset_directory(&handle, &source);
+            return Ok(SavedFile {
+                root: source.display().to_string(),
+                stamp: files::stamp(&path),
+                path: path.display().to_string(),
+                missing_files,
+                version,
+                version_error,
+            });
+        }
         let mut missing_files = Vec::new();
         if let Some(source) = project_root_opt(&source_root) {
             missing_files = files::copy_project_files(
@@ -1133,6 +1400,8 @@ async fn save_project(
             stamp: files::stamp(&path),
             path: path.display().to_string(),
             missing_files,
+            version: None,
+            version_error: None,
         })
     })
     .await
@@ -1205,6 +1474,8 @@ async fn export_tex(
             stamp: files::stamp(&path),
             path: path.display().to_string(),
             missing_files,
+            version: None,
+            version_error: None,
         })
     })
     .await
@@ -1595,6 +1866,10 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             history_list,
             history_snapshot,
             history_read,
+            history_restore_files,
+            history_location,
+            project_copy,
+            export_latex_zip,
             history_rename,
             history_delete,
             compare_texts,
@@ -1612,6 +1887,7 @@ pub fn run_with(assets: embedded::EmbeddedAssets) {
             check_resources,
             compile_document,
             render_pdf_page,
+            render_pdf_page_svg,
             review_document,
             synctex_to_source,
             synctex_to_pdf,

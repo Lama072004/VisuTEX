@@ -659,3 +659,30 @@ fn charts_compile_in_document() {
     }
     eprintln!("{} Seiten", stored.pages.len());
 }
+
+/// Misst die SVG-Größe einer Seite mit viel Fließtext (Glyphen-Wiederverwendung).
+#[test]
+#[ignore]
+fn svg_size_of_text_page() {
+    let body = "Dies ist ein Beispieltext mit vielen verschiedenen Zeichen, Zahlen 0123456789 und Umlauten äöü. ".repeat(45);
+    let latex =
+        format!("\\documentclass{{article}}\n\\begin{{document}}\n{body}\n\\end{{document}}\n");
+    let output = compile(
+        CompileRequest {
+            latex,
+            project_root: None,
+            extra_search_paths: Vec::new(),
+        },
+        &bundle(),
+        &mut |_| {},
+    )
+    .unwrap_or_else(|failure| panic!("{}\n{}", failure.message, failure.log));
+    let stored = visutex_lib::pdf::load(output.pdf).unwrap();
+    let svg = visutex_lib::pdf::render_page_svg_white(&stored, 0).unwrap();
+    eprintln!(
+        "SVG: {} Bytes, <path: {}, <use: {}",
+        svg.len(),
+        svg.matches("<path").count(),
+        svg.matches("<use").count()
+    );
+}

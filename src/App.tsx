@@ -20,7 +20,7 @@ import { Braces, Eye, PanelRight, Play, Presentation } from "lucide-react";
 import "katex/dist/katex.min.css";
 import "./App.css";
 import { api, errorText, isTauri } from "./api";
-import type { AppInfo, CompileFailure, SetupStatus, UpdateInfo, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis, ReviewCompileInfo, ReviewFinding, TextDiff, VersionInfo } from "./api";
+import type { AppInfo, CompileFailure, SetupStatus, UpdateInfo, EmbeddedAsset, InstalledAddon, OpenedProject, Project, Snippet, SystemCheck, TemplateInfo, TexMessage, Analysis, ReviewCompileInfo, ReviewFinding, SavedFile, TextDiff, VersionInfo, VersionStore } from "./api";
 import { appExtensions } from "./editor/extensions";
 import { FormatPainter } from "./editor/formatPainter";
 import type { PageInfo } from "./editor/pagination";
@@ -42,7 +42,6 @@ import type { EditRequest } from "./state/runtime";
 import { Backstage } from "./components/Backstage";
 import type { AppPrefs, BackstageView, RecentFile } from "./components/Backstage";
 import { CitationDialog } from "./components/CitationDialog";
-import { ChartDialog } from "./components/ChartDialog";
 import type { ChartInitial, ChartResult } from "./components/ChartDialog";
 import type { CitationTab, CitationValue } from "./components/CitationDialog";
 import { DialogProvider, useDialogs } from "./components/Dialogs";
@@ -55,7 +54,6 @@ import { Ribbon } from "./components/Ribbon";
 import type { RibbonActions, ViewState } from "./components/Ribbon";
 import { Ruler } from "./components/Ruler";
 import { SearchPanel } from "./components/SearchPanel";
-import { SketchPad } from "./sketch/SketchPad";
 import type { Sketch } from "./sketch/SketchPad";
 import { SystemCheckDialog } from "./components/SystemCheckDialog";
 import { SetupScreen, UpdateDialog } from "./components/SetupScreen";
@@ -65,7 +63,6 @@ import { ShareDialog, TitleContextMenu } from "./components/ShareDialog";
 import { AddonInstallDialog } from "./components/AddonInstallDialog";
 import { ReviewPanel } from "./components/ReviewPanel";
 import { HistoryPanel } from "./components/HistoryPanel";
-import { CompareDialog } from "./components/CompareDialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { DEFAULT_QUICK_ACCESS, normalizeQuickAccess } from "./shortcuts/quickAccess";
 import { completionData } from "./monaco/completionData";
@@ -74,6 +71,10 @@ import type { SlideFileActions, SlidesSession } from "./slides/model";
 
 const CodeView = lazy(() => import("./components/CodeView"));
 const SlideEditor = lazy(() => import("./slides/SlideEditor"));
+// Selten gebraucht und groß: erst beim Öffnen laden (kleineres Haupt-Bundle, weniger Speicher beim Start)
+const SketchPad = lazy(() => import("./sketch/SketchPad").then((module) => ({ default: module.SketchPad })));
+const ChartDialog = lazy(() => import("./components/ChartDialog").then((module) => ({ default: module.ChartDialog })));
+const CompareDialog = lazy(() => import("./components/CompareDialog").then((module) => ({ default: module.CompareDialog })));
 
 const MM = 96 / 25.4;
 const PAGE_GAP = 28;
@@ -94,6 +95,9 @@ const defaultPrefs: AppPrefs = {
   checkUpdates: true,
   skipUpdate: "",
   quickAccess: [...DEFAULT_QUICK_ACCESS],
+  versionsInProject: true,
+  versionLocation: "app",
+  versionDir: "",
 };
 
 function loadPrefs(): AppPrefs {
@@ -133,6 +137,7 @@ function loadRecovery(): Recovery | null {
 }
 
 /** TikZ-Vorschaubilder nicht in die Wiederherstellungsdaten (Größe). */
+/** Vorschaubilder (SVG als data-URL) entfernen – Rust braucht sie nicht, sie würden jeden Aufruf aufblähen. */
 function stripPreviews(node: JSONContent): JSONContent {
   const copy: JSONContent = { ...node };
   if (copy.type === "tikzBlock" && copy.attrs) copy.attrs = { ...copy.attrs, preview: "", previewCode: "" };
@@ -245,7 +250,7 @@ function Workspace() {
   const codeCursorLine = useRef(1);
   /** Abgabe-Check: offen mit Funden (null = geschlossen) */
   const [review, setReview] = useState<{ findings: ReviewFinding[] | null; busy: boolean } | null>(null);
-  const [history, setHistory] = useState<{ versions: VersionInfo[] | null; busy: boolean } | null>(null);
+  const [history, setHistory] = useState<{ versions: VersionInfo[] | null; busy: boolean; location: string } | null>(null);
   const historyVisible = useRef(false);
   historyVisible.current = history !== null;
   const [comparison, setComparison] = useState<{ oldLabel: string; newLabel: string; diff: TextDiff; version: VersionInfo | null } | null>(null);
@@ -275,6 +280,8 @@ function Workspace() {
   const codeBase = useRef<{ code: string; generatedPreamble: string; assets: EmbeddedAsset[] } | null>(null);
   /** Zuletzt kompiliert: PDF, Zeilen je Block (null: aus der Code-Ansicht bzw. ohne Zuordnung) */
   const lastCompiled = useRef<{ pdfId: number; blockLines: BlockLines | null } | null>(null);
+  /** LaTeX des letzten Kompilierlaufs (automatisches Kompilieren überspringt unveränderte Stände). */
+  const lastCompiledLatex = useRef("");
   /** Letztes Kompilieren (auch fehlgeschlagen) für den Abgabe-Check */
   const lastCompileInfo = useRef<ReviewCompileInfo | null>(null);
   const noticeId = useRef(0);
@@ -352,7 +359,7 @@ function Workspace() {
     setPreviewPreambleProvider(async () => {
       const current = stateRef.current;
       if (current.customPreamble) return current.customPreamble;
-      const exported = await api.exportDocument(editor?.getJSON() ?? { type: "doc" }, current.settings, null);
+      const exported = await api.exportDocument(editor ? stripPreviews(editor.getJSON()) : { type: "doc" }, current.settings, null);
       return exported.preamble;
     });
   }, [editor]);
@@ -401,7 +408,7 @@ function Workspace() {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         void api
-          .analyzeDocument(editor.getJSON())
+          .analyzeDocument(stripPreviews(editor.getJSON()))
           .then((result) => {
             setAnalysis(result);
             completionData.labels = result.labels.map((label) => label.label);
@@ -544,6 +551,13 @@ function Workspace() {
     return true;
   }, [t, texOptions]);
 
+  /** Eigenen Ordner für den Verlauf von .tex-Dateien wählen. */
+  const chooseVersionDir = useCallback(async () => {
+    const dir = await open({ directory: true, title: t("Ordner für den Versionsverlauf wählen") });
+    if (!dir || Array.isArray(dir)) return;
+    setPrefs({ ...stateRef.current.prefs, versionDir: dir, versionLocation: "custom" });
+  }, [t]);
+
   const chooseBundle = useCallback(async () => {
     const file = await open({ title: t("TeX-Bundle wählen"), filters: [{ name: t("TeX-Bundle (ZIP)"), extensions: ["zip"] }] });
     if (!file || Array.isArray(file)) return;
@@ -671,6 +685,7 @@ function Workspace() {
       setCompileStatus({ state: "idle" });
       setCodeMessages([]);
       lastCompiled.current = null;
+      lastCompiledLatex.current = "";
       if (project.lastMode === "code" && project.code) {
         setCode(project.code);
         setModeState("code");
@@ -776,7 +791,7 @@ function Workspace() {
     if (current.mode === "code") {
       return { latex: current.code, assets: codeBase.current?.assets ?? [], generatedPreamble: codeBase.current?.generatedPreamble ?? "", blockLines: null };
     }
-    const exported = await api.exportDocument(editor?.getJSON() ?? { type: "doc" }, current.settings, current.customPreamble);
+    const exported = await api.exportDocument(editor ? stripPreviews(editor.getJSON()) : { type: "doc" }, current.settings, current.customPreamble);
     if (docCode.current !== null) {
       // Originalcode eines unveränderten Fremddokuments: Blockzeilen gelten, wenn der Export ihn genau trifft
       const blockLines = docCode.current === exported.latex ? exported.blockLines : null;
@@ -795,7 +810,7 @@ function Workspace() {
       if (!base) {
         // Projekt wurde direkt in der Code-Ansicht geöffnet: Vergleichsstand nachträglich bilden.
         if (docCode.current !== null && current.code === docCode.current) return true;
-        const exported = await api.exportDocument(editor.getJSON(), current.settings, current.customPreamble);
+        const exported = await api.exportDocument(stripPreviews(editor.getJSON()), current.settings, current.customPreamble);
         base = { code: docCode.current ?? exported.latex, generatedPreamble: exported.generatedPreamble, assets: exported.assets };
         codeBase.current = base;
       }
@@ -840,12 +855,12 @@ function Workspace() {
   }, [editor, t]);
 
   const saveTo = useCallback(
-    async (path: string, kind: "visutex" | "tex", sourceRoot: string | null): Promise<boolean> => {
+    async (path: string, kind: "visutex" | "tex", sourceRoot: string | null, versionName: string | null = null): Promise<boolean> => {
       if (!editor) return false;
       if (!(await syncFromCode())) return false;
       const current = stateRef.current;
       try {
-        let saved;
+        let saved: SavedFile;
         let savedLatex: string | null = null;
         if (kind === "tex") {
           const { latex, assets } = await currentLatex();
@@ -862,14 +877,19 @@ function Workspace() {
             lastMode: current.mode,
             code: current.mode === "code" ? current.code : docCode.current,
           };
-          saved = await api.saveProject(path, project, sourceRoot);
+          // Projektdatei wie .docx: LaTeX, Bilder/Literatur und Verlauf in einer Datei (Version legt Rust an)
+          const { latex } = await currentLatex(true);
+          const previousPath = current.docState?.temporary ? null : (current.docState?.path ?? null);
+          saved = await api.saveProject(path, project, sourceRoot, latex, { include: current.prefs.versionsInProject, name: versionName }, previousPath);
+          if (saved.versionError) notify(`${t("Version konnte nicht angelegt werden:")} ${saved.versionError}`, "error");
+          if (saved.version && historyVisible.current) window.setTimeout(() => void loadHistoryRef.current(), 0);
         }
         setDocState({ root: saved.root, path: saved.path, kind, temporary: false, stamp: saved.stamp, name: fileName(saved.path) });
         setDirty(false);
         rememberRecent(saved.path);
         localStorage.removeItem("visutex-recovery");
         // Versionsverlauf: jedes Speichern legt eine Version an (unverändert: keine)
-        void recordVersionRef.current(saved.path, savedLatex);
+        if (kind === "tex") void recordVersionRef.current(saved.path, saved.root, savedLatex);
         if (saved.missingFiles.length) notify(`${t("Nicht gefundene Dateien (nicht kopiert):")} ${saved.missingFiles.join(", ")}`, "error");
         else notify(`${t("Gespeichert:")} ${fileName(saved.path)}`);
         return true;
@@ -902,6 +922,23 @@ function Workspace() {
       const { latex, assets } = await currentLatex();
       const saved = await api.exportTex(path, latex, assets, current.root);
       notify(saved.missingFiles.length ? `${t("Exportiert, aber Dateien fehlen:")} ${saved.missingFiles.join(", ")}` : `${t("Exportiert:")} ${fileName(path)}`, saved.missingFiles.length ? "error" : "info");
+      setBackstage(null);
+    } catch (error) {
+      await dialogs.alert(t("Export fehlgeschlagen"), errorText(error));
+    }
+  }, [currentLatex, dialogs, notify, syncFromCode, t]);
+
+  /** LaTeX-Projekt als ZIP: .tex + Bilder/Literatur, ohne VisuTeX-Daten (Overleaf, TeXstudio …). */
+  const exportZip = useCallback(async () => {
+    const current = stateRef.current.docState;
+    if (!current) return;
+    const path = await save({ title: t("Als LaTeX-Projekt (ZIP) exportieren"), defaultPath: `${(current.name || "dokument").replace(/\.[^.]+$/, "")}.zip`, filters: [{ name: "ZIP", extensions: ["zip"] }] });
+    if (!path) return;
+    try {
+      if (!(await syncFromCode())) return;
+      const { latex, assets } = await currentLatex();
+      const missing = await api.exportLatexZip(path, latex, assets, current.root);
+      notify(missing.length ? `${t("Exportiert, aber Dateien fehlen:")} ${missing.join(", ")}` : `${t("Exportiert:")} ${fileName(path)}`, missing.length ? "error" : "info");
       setBackstage(null);
     } catch (error) {
       await dialogs.alert(t("Export fehlgeschlagen"), errorText(error));
@@ -943,6 +980,7 @@ function Workspace() {
       const { latex, assets, blockLines } = await currentLatex();
       const result = await api.compileDocument(latex, current.docState.root, assets, current.prefs.allowOnline);
       lastCompiled.current = { pdfId: result.pdfId, blockLines };
+      lastCompiledLatex.current = latex;
       lastCompileInfo.current = {
         errors: result.messages.filter((message) => message.severity === "error").length,
         layoutIssues: result.layoutIssues ?? [],
@@ -981,6 +1019,31 @@ function Workspace() {
   }, [currentLatex, t]);
   const compileRef = useRef(compile);
   compileRef.current = compile;
+
+  /** Automatisches Kompilieren: höchstens ein Lauf gleichzeitig (plus ein Nachlauf), unverändertes LaTeX gar nicht. */
+  const autoCompileState = useRef({ running: false, pending: false });
+  const autoCompile = useCallback(async () => {
+    const state = autoCompileState.current;
+    if (state.running) {
+      state.pending = true;
+      return;
+    }
+    state.running = true;
+    try {
+      const { latex } = await currentLatex(true);
+      if (latex !== lastCompiledLatex.current) await compileRef.current();
+    } catch {
+      // Fehler zeigt der Kompilierlauf selbst
+    } finally {
+      state.running = false;
+      if (state.pending) {
+        state.pending = false;
+        void autoCompileRef.current();
+      }
+    }
+  }, [currentLatex]);
+  const autoCompileRef = useRef(autoCompile);
+  autoCompileRef.current = autoCompile;
 
   /** Obersten Block im visuellen Editor auswählen, in die Mitte scrollen und kurz hervorheben. */
   const revealBlock = useCallback(
@@ -1030,7 +1093,7 @@ function Workspace() {
     try {
       if (stateRef.current.mode === "code") await syncFromCode();
       const current = stateRef.current;
-      const findings = await api.reviewDocument(editor.getJSON(), current.docState?.root ?? null, current.settings.bibliography.file, lastCompileInfo.current);
+      const findings = await api.reviewDocument(stripPreviews(editor.getJSON()), current.docState?.root ?? null, current.settings.bibliography.file, lastCompileInfo.current);
       setReview({ findings, busy: false });
     } catch (error) {
       notify(errorText(error), "error");
@@ -1042,21 +1105,25 @@ function Workspace() {
 
   // ---------------------------------------------------------------- Versionsverlauf und Vergleich
 
-  /** Pfad des gespeicherten Dokuments (null: noch nicht gespeichert). */
-  const savedPath = () => {
+  /** Ablage des Verlaufs: Projektdatei (reist mit) bzw. für .tex-Dateien nach Einstellung (null: ungespeichert). */
+  const versionStore = (): VersionStore | null => {
     const current = stateRef.current.docState;
-    return current?.path && !current.temporary ? current.path : null;
+    if (!current?.path || current.temporary) return null;
+    if (current.kind === "visutex") return { kind: "project", path: current.path };
+    const { versionLocation, versionDir } = stateRef.current.prefs;
+    return { kind: "file", path: current.path, location: versionLocation, dir: versionDir || undefined };
   };
 
   const loadHistory = useCallback(async () => {
-    const path = savedPath();
-    if (!path) {
-      setHistory({ versions: null, busy: false });
+    const store = versionStore();
+    if (!store) {
+      setHistory({ versions: null, busy: false, location: "" });
       return;
     }
-    setHistory((current) => ({ versions: current?.versions ?? null, busy: true }));
+    setHistory((current) => ({ versions: current?.versions ?? null, busy: true, location: current?.location ?? "" }));
     try {
-      setHistory({ versions: await api.historyList(path), busy: false });
+      const [versions, location] = await Promise.all([api.historyList(store), api.historyLocation(store)]);
+      setHistory({ versions, busy: false, location });
     } catch (error) {
       notify(errorText(error), "error");
       setHistory((current) => current && { ...current, busy: false });
@@ -1064,28 +1131,34 @@ function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [notify]);
 
-  /** Nach dem Speichern: Version anlegen (Fehler nur in der Konsole – Speichern hat geklappt). */
+  /** Nach dem Speichern einer .tex-Datei: Version anlegen (Projektdateien legt Rust beim Speichern selbst an). */
   const recordVersion = useCallback(
-    async (path: string, latex: string | null) => {
+    async (path: string, root: string, latex: string | null) => {
+      const { versionLocation, versionDir } = stateRef.current.prefs;
+      const store: VersionStore = { kind: "file", path, location: versionLocation, dir: versionDir || undefined };
       try {
         const text = latex ?? (await currentLatex(true)).latex;
-        const info = await api.historySnapshot(path, text, null);
+        const info = await api.historySnapshot(store, text, null, root);
         if (info && historyVisible.current) void loadHistory();
       } catch (error) {
-        console.warn("Version konnte nicht angelegt werden:", error);
+        // Speichern hat geklappt – trotzdem sichtbar melden, sonst fehlt die Version unbemerkt
+        notify(`${t("Version konnte nicht angelegt werden:")} ${errorText(error)}`, "error");
       }
     },
-    [currentLatex, loadHistory],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [currentLatex, loadHistory, notify, t],
   );
   const recordVersionRef = useRef(recordVersion);
   recordVersionRef.current = recordVersion;
+  const loadHistoryRef = useRef(loadHistory);
+  loadHistoryRef.current = loadHistory;
 
   const versionLabel = (version: VersionInfo) =>
     `${version.name || t("Version")} – ${new Date(version.created).toLocaleString(languageInfo(stateRef.current.prefs.language).locale, { dateStyle: "medium", timeStyle: "short" })}`;
 
   const saveVersion = useCallback(async () => {
-    const path = savedPath();
-    if (!path) {
+    const store = versionStore();
+    if (!store) {
       await dialogs.alert(t("Version speichern"), t("Versionen gibt es erst, wenn das Dokument gespeichert ist. Bitte zuerst speichern (Strg+S)."));
       return;
     }
@@ -1095,9 +1168,15 @@ function Workspace() {
     });
     if (!values) return;
     try {
-      const { latex } = await currentLatex(true);
-      const info = await api.historySnapshot(path, latex, String(values.name));
-      notify(`${t("Version gespeichert:")} ${info?.name ?? String(values.name)}`);
+      const current = stateRef.current.docState;
+      // Projektdatei: speichern und dabei die Version benennen (landet so auch in der Datei)
+      if (store.kind === "project" && current) {
+        if (!(await saveToRef.current(store.path, "visutex", current.root, String(values.name)))) return;
+      } else {
+        const { latex } = await currentLatex(true);
+        await api.historySnapshot(store, latex, String(values.name), current?.root ?? null);
+      }
+      notify(`${t("Version gespeichert:")} ${String(values.name)}`);
       if (historyVisible.current) void loadHistory();
     } catch (error) {
       notify(errorText(error), "error");
@@ -1107,10 +1186,10 @@ function Workspace() {
 
   const compareVersion = useCallback(
     async (version: VersionInfo) => {
-      const path = savedPath();
-      if (!path) return;
+      const store = versionStore();
+      if (!store) return;
       try {
-        const [old, { latex }] = await Promise.all([api.historyRead(path, version.id), currentLatex(true)]);
+        const [old, { latex }] = await Promise.all([api.historyRead(store, version.id), currentLatex(true)]);
         setComparison({ oldLabel: versionLabel(version), newLabel: t("Aktueller Stand"), diff: await api.compareTexts(old, latex), version });
       } catch (error) {
         notify(errorText(error), "error");
@@ -1134,8 +1213,9 @@ function Workspace() {
   /** Version zurückholen; der aktuelle Stand wird vorher als Version gesichert. */
   const restoreVersion = useCallback(
     async (version: VersionInfo) => {
-      const path = savedPath();
-      if (!path || !editor) return;
+      const store = versionStore();
+      const root = stateRef.current.docState?.root ?? null;
+      if (!store || !editor) return;
       const answer = await dialogs.confirm({
         title: t("Version wiederherstellen"),
         message: `${versionLabel(version)}\n\n${t("Der aktuelle Stand wird vorher als Version gesichert. Übernommen ist die wiederhergestellte Fassung erst nach dem Speichern.")}`,
@@ -1143,9 +1223,11 @@ function Workspace() {
       });
       if (answer !== true) return;
       try {
-        const text = await api.historyRead(path, version.id);
+        const text = await api.historyRead(store, version.id);
         const { latex, generatedPreamble, assets } = await currentLatex(true);
-        await api.historySnapshot(path, latex, null);
+        // aktuellen Stand (mit Bildern) sichern, dann Bilder/Literatur der Version zurückholen
+        await api.historySnapshot(store, latex, null, root);
+        const restoredFiles = root ? await api.historyRestoreFiles(store, version.id, root) : [];
         const current = stateRef.current;
         if (current.mode === "code") {
           onCodeChange(text);
@@ -1168,6 +1250,7 @@ function Workspace() {
         }
         setComparison(null);
         notify(t("Version wiederhergestellt – mit Strg+S speichern, um sie zu übernehmen."));
+        if (restoredFiles.length) notify(`${t("Dateien der Version zurückgeholt:")} ${restoredFiles.join(", ")}`);
         if (historyVisible.current) void loadHistory();
       } catch (error) {
         await dialogs.alert(t("Version wiederherstellen"), errorText(error));
@@ -1179,15 +1262,15 @@ function Workspace() {
 
   const renameVersion = useCallback(
     async (version: VersionInfo) => {
-      const path = savedPath();
-      if (!path) return;
+      const store = versionStore();
+      if (!store) return;
       const values = await dialogs.form({
         title: t("Version umbenennen"),
         fields: [{ kind: "text", name: "name", label: t("Name der Version"), value: version.name, placeholder: t("leer: automatisch") }],
       });
       if (!values) return;
       try {
-        await api.historyRename(path, version.id, String(values.name));
+        await api.historyRename(store, version.id, String(values.name));
         void loadHistory();
       } catch (error) {
         notify(errorText(error), "error");
@@ -1199,12 +1282,12 @@ function Workspace() {
 
   const deleteVersion = useCallback(
     async (version: VersionInfo) => {
-      const path = savedPath();
-      if (!path) return;
+      const store = versionStore();
+      if (!store) return;
       const answer = await dialogs.confirm({ title: t("Version löschen"), message: versionLabel(version), confirmLabel: t("Löschen"), danger: true });
       if (answer !== true) return;
       try {
-        await api.historyDelete(path, version.id);
+        await api.historyDelete(store, version.id);
         void loadHistory();
       } catch (error) {
         notify(errorText(error), "error");
@@ -1275,7 +1358,7 @@ function Workspace() {
     let timer: number | undefined;
     const schedule = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => void compileRef.current(), 2500);
+      timer = window.setTimeout(() => void autoCompileRef.current(), 2500);
     };
     editor.on("update", schedule);
     return () => {
@@ -1285,7 +1368,7 @@ function Workspace() {
   }, [editor, prefs.autoCompile, view.showPdf]);
   useEffect(() => {
     if (!prefs.autoCompile || !view.showPdf || mode !== "code") return;
-    const timer = window.setTimeout(() => void compileRef.current(), 2500);
+    const timer = window.setTimeout(() => void autoCompileRef.current(), 2500);
     return () => window.clearTimeout(timer);
   }, [code, mode, prefs.autoCompile, view.showPdf]);
 
@@ -1297,7 +1380,7 @@ function Workspace() {
       if (!editor || next === current.mode) return;
       if (next === "code") {
         try {
-          const exported = await api.exportDocument(editor.getJSON(), current.settings, current.customPreamble);
+          const exported = await api.exportDocument(stripPreviews(editor.getJSON()), current.settings, current.customPreamble);
           const text = docCode.current ?? exported.latex;
           codeBase.current = { code: text, generatedPreamble: exported.generatedPreamble, assets: exported.assets };
           setCode(text);
@@ -1327,9 +1410,11 @@ function Workspace() {
 
   // ---------------------------------------------------------------- Wiederherstellung, externe Änderungen, Schließen
 
+  const recoveryWritten = useRef(0);
   useEffect(() => {
     if (!prefs.autosave || !dirty || !editor || !docState) return;
-    const timer = window.setTimeout(() => {
+    const write = () => {
+      recoveryWritten.current = Date.now();
       const current = stateRef.current;
       const value: Recovery = {
         name: docState.name,
@@ -1353,8 +1438,21 @@ function Workspace() {
       } catch {
         // Speicher voll – Wiederherstellung ist optional.
       }
-    }, 2000);
-    return () => window.clearTimeout(timer);
+    };
+    // 3 s nach der letzten Änderung sichern, bei ununterbrochenem Tippen spätestens alle 20 s
+    let timer: number | undefined;
+    const schedule = () => {
+      window.clearTimeout(timer);
+      const overdue = Date.now() - recoveryWritten.current > 20000;
+      timer = window.setTimeout(write, overdue ? 0 : 3000);
+    };
+    schedule();
+    // Änderungen im visuellen Editor ändern keine der Abhängigkeiten unten – direkt auf den Editor hören
+    editor.on("update", schedule);
+    return () => {
+      window.clearTimeout(timer);
+      editor.off("update", schedule);
+    };
   }, [dirty, editor, docState, prefs.autosave, code, settings, customPreamble]);
 
   const restoreRecovery = useCallback(async () => {
@@ -2262,6 +2360,10 @@ function Workspace() {
       compile: compileRef.current,
       exportTex,
       applyOpened,
+      // Screenshots/E2E-Tests (scripts/screenshots.mjs): Dateien ohne Dialog öffnen
+      openDocument,
+      openPresentation,
+      runShortcut,
     };
   });
 
@@ -2514,6 +2616,13 @@ function Workspace() {
         {history && (
           <HistoryPanel
             documentPath={docState?.path && !docState.temporary ? docState.path : null}
+            location={
+              docState?.kind === "visutex"
+                ? prefs.versionsInProject
+                  ? t("in der Projektdatei – reist beim Verschieben und Umbenennen mit")
+                  : t("nur auf diesem Computer (nicht in der Projektdatei)")
+                : history.location
+            }
             versions={history.versions}
             busy={history.busy}
             onRefresh={() => void loadHistory()}
@@ -2542,6 +2651,7 @@ function Workspace() {
         <main className="editor-pane">
           {mode === "visual" && search && editor && <SearchPanel editor={editor} replace={search.replace} onClose={() => setSearch(null)} />}
           {sketch && (
+            <Suspense fallback={null}>
             <SketchPad
               initial={sketch.initial}
               editing={sketch.pos !== null}
@@ -2560,8 +2670,10 @@ function Workspace() {
                 notify(t("Skizze eingefügt – Vorschau wird kompiliert."));
               }}
             />
+            </Suspense>
           )}
           {comparison && (
+            <Suspense fallback={null}>
             <CompareDialog
               oldLabel={comparison.oldLabel}
               newLabel={comparison.newLabel}
@@ -2569,8 +2681,10 @@ function Workspace() {
               onClose={() => setComparison(null)}
               onRestore={comparison.version ? () => comparison.version && void restoreVersion(comparison.version) : undefined}
             />
+            </Suspense>
           )}
           {chart && (
+            <Suspense fallback={null}>
             <ChartDialog
               initial={chart.initial}
               decimalComma={documentLanguage(settings.language).decimal === ","}
@@ -2581,6 +2695,7 @@ function Workspace() {
                 if (result && editor) insertChart(result, pos);
               }}
             />
+            </Suspense>
           )}
           <div className="document-scroller" ref={scrollerRef} style={{ display: mode === "visual" ? undefined : "none" }}>
             {view.showRuler && (
@@ -2735,6 +2850,7 @@ function Workspace() {
             savedAt: docState?.stamp?.modifiedMs ?? null,
             dirty,
             latexProject: docState?.kind === "tex",
+            project: docState?.kind === "visutex",
           }}
           locale={languageInfo(prefs.language).locale}
           onSave={() => saveRef.current()}
@@ -2856,9 +2972,11 @@ function Workspace() {
             void saving.then((ok) => ok && setBackstage(null));
           }}
           onExportTex={() => void exportTex()}
+          onExportZip={() => void exportZip()}
           onExportPdf={() => void exportPdf()}
           onAddonsChanged={reloadAddons}
           onChoosePackageDir={() => void choosePackageDir()}
+          onChooseVersionDir={() => void chooseVersionDir()}
           onChooseBundle={() => void chooseBundle()}
           onSystemCheck={() => {
             setSystemCheckOpen(true);

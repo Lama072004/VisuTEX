@@ -30,10 +30,11 @@ Die Oberfläche ruft Rust ausschließlich über typisierte Befehle in `src/api.t
 3. **Import** (`core/import.rs`): beliebiges LaTeX → JSON. Unbekanntes bleibt als Roh-LaTeX-Block erhalten.
 4. **Quelltreue**: Importierte Blöcke merken sich ihren Originalcode (`sourceLatex`) und einen Fingerabdruck (`sourceKey`). Unveränderte Blöcke werden **zeichengenau** wieder ausgegeben → verlustfreier Round-Trip Code ⇄ Visuell.
 5. **Kompilieren** (`compile.rs`): Tectonic (XeTeX) mit dem mitgelieferten TeX-Bundle, auch bei Fehlern wird ein PDF erzeugt; `prepare.rs` passt Fremddokumente zeilengenau an (biber→BibTeX, pdfx, fehlende/defekte Bilder → Platzhalter).
-6. **Vorschau** (`pdf.rs`, `preview.rs`): PDF-Seiten werden in Rust mit hayro verarbeitet. Vorschauen im Editor
-   (LaTeX-Blöcke, Titelseite, TikZ, PDF-Grafiken, Folienbilder) sind **Vektorgrafiken (SVG, `hayro-svg`)** – auf den
-   Inhalt zugeschnitten, in jeder Vergrößerung scharf. Nur der PDF-Vorschaubereich rastert Seiten (PNG), weil dort ganze
-   Seiten schnell erscheinen müssen.
+6. **Vorschau** (`pdf.rs`, `preview.rs`): PDF-Seiten werden in Rust mit hayro verarbeitet. Alle Vorschauen sind
+   **Vektorgrafiken (SVG, `hayro-svg`)** – Block-Vorschauen (LaTeX, Titelseite, TikZ, PDF-Grafiken, Folienbilder) auf den
+   Inhalt zugeschnitten, die PDF-Vorschau seitenweise (nur sichtbare Seiten, Rückfall PNG). Glyphen werden je Seite einmal
+   definiert und per `<use>` wiederverwendet (Textseite ≈ 350 KB). Rasterbilder entstehen nur noch intern zum Messen des
+   Inhaltsrahmens (Pixel direkt aus der Pixmap, ohne PNG-Umweg) und für eingefügte Fotos/Screenshots der Nutzer.
 7. **PDF ↔ Dokument** (`core/synctex.rs`): Tectonic schreibt beim Kompilieren eine SyncTeX-Datei (gz, im Speicher);
    `pdf.rs` hält sie zum PDF. Der Export liefert zu jedem Block seine Zeilen im LaTeX (`blockLines`), so führt ein
    Doppelklick ins PDF über die Zeile zum Block (`src/editor/syncLines.ts`, Aufblinken `syncFlash.ts`) und umgekehrt
@@ -48,9 +49,15 @@ Die Oberfläche ruft Rust ausschließlich über typisierte Befehle in `src/api.t
 - **Diagramme** (`core/chart.rs`, `ChartDialog.tsx`): Tabelle + Diagrammart → `pgfplots`-Code (Kreis: reines TikZ) als
   TikZ-Block; das Modell steht wie bei Skizzen als erste Kommentarzeile (`% VisuTeX-Diagramm: {…}`). Der Export
   ergänzt `pgfplots` + `\pgfplotsset{compat=1.18}` automatisch.
-- **Versionsverlauf** (`history.rs`): bei jedem Speichern der vollständige LaTeX-Code im Datenordner
-  (`versionen/<SHA-256 des Dokumentpfads>/`, `index.json` + `<zeitstempel>.tex`; automatische Versionen höchstens 100,
-  benannte unbegrenzt). **Vergleich** (`core/diff.rs`): Myers-Diff auf Zeilen, geänderte Zeilenpaare zusätzlich
+- **Projektdatei** (`container.rs`): `.visutex` als ZIP (siehe Dateiformate). Schreiben in eine temporäre Datei,
+  `sync_all`, dann ersetzen; komprimierte Formate werden nur gespeichert. Beim Öffnen Entpacken (Zip-Slip- und
+  Größenprüfung) in `<lokaler Datenordner>/projekte/<Prüfsumme des Pfads>/` (`dateien/` = Projektordner,
+  `versionen/`). Kopien zum Weitergeben ohne Verlauf bzw. ohne VisuTeX-Daten (`project_copy`, `export_latex_zip`).
+- **Versionsverlauf** (`history.rs`): bei jedem Speichern LaTeX (`<id>.txt` – nicht `.tex`, damit Overleaf keine alte
+  Version als Hauptdokument nimmt) plus Projektdateien inhaltsadressiert (`dateien/<sha256>`, dedupliziert), Index
+  `index.json` (bei Beschädigung aus den Dateien neu aufgebaut). Aufbewahrung: benannte immer, automatische der letzten
+  24 h, davor die letzte je Tag. Ablage (`VersionStore` in `lib.rs`): Projektdatei → Arbeitsordner, beim Speichern in
+  die Datei gepackt; `.tex` → App-Datenordner, `.visutex-versionen/` neben dem Dokument oder eigener Ordner. **Vergleich** (`core/diff.rs`): Myers-Diff auf Zeilen, geänderte Zeilenpaare zusätzlich
   wortweise, Abschnitte mit Kontext (`CompareDialog.tsx`, `HistoryPanel.tsx`).
 
 ## Datenfluss Präsentation
@@ -80,7 +87,7 @@ sie einmalig ab (`startup_files`). Anleitung für Entwickler: [ADDONS.md](ADDONS
 
 | Endung | Inhalt |
 |---|---|
-| `.visutex` | Projekt (JSON, Format v2): Einstellungen, Dokument-JSON, ggf. eigene Präambel, letzte Ansicht |
+| `.visutex` | Projektdatei wie `.docx`: ZIP mit `<Name>.tex` (portables LaTeX), Bildern/Literatur/Teildateien, `LIESMICH.txt` und `visutex/` (`projekt.json` = Projekt Format v2: Einstellungen, Dokument-JSON, eigene Präambel, letzte Ansicht; `versionen/` = Verlauf). Ältere JSON-`.visutex` werden weiter gelesen (`container.rs`) |
 | `.tex` | Beliebiges LaTeX; beim Speichern bleibt die Datei LaTeX (eingebundene Teildateien werden zurückgeschrieben) |
 | `.vtxslides` | Präsentation (JSON): Folien, Elemente, Design, Raster; Bilder eingebettet |
 | `.vtxaddon` | Add-on (ZIP mit `addon.json`, TeX-Dateien, SVG-Symbolen, Vorlagen) – siehe [ADDONS.md](ADDONS.md) |
@@ -121,7 +128,7 @@ sie einmalig ab (`startup_files`). Anleitung für Entwickler: [ADDONS.md](ADDONS
 │   │   ├── support.rs                eigene TeX-Dateien (deutscher IEEE-Stil) für Kompilieren und Export
 │   ├── src/compile.rs, prepare.rs, texbundle.rs, pdf.rs, preview.rs   Kompilieren und Vorschau
 │   ├── src/files.rs, images.rs, fonts.rs, system.rs, zotero.rs, addons.rs, templates.rs
-│   ├── src/references.rs, history.rs  Literatur per DOI/ISBN (Internet), Versionsverlauf (Datenordner)
+│   ├── src/references.rs, history.rs, container.rs  Literatur per DOI/ISBN, Versionsverlauf, Projektdatei (ZIP)
 │   ├── src/embedded.rs           eingebettetes TeX-Bundle/Add-ons beim Start entpacken
 │   ├── src/share.rs              Teilen der gespeicherten Datei (Windows-Teilen-Fenster, Linux: xdg-email)
 │   ├── src/launch.rs             per Doppelklick übergebene Dateien (.vtxaddon, .visutex, .vtxslides, .tex)

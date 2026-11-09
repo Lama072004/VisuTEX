@@ -270,7 +270,9 @@ fn pdf_preview(path: &Path) -> Result<String, String> {
     let mut cache = pdf_cache()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if cache.len() > 64 {
+    // Grenze nach Anzahl und Größe (SVGs großer PDF-Grafiken können einige MB groß sein)
+    let bytes: usize = cache.values().map(String::len).sum();
+    if cache.len() >= 64 || bytes + url.len() > 32 * 1024 * 1024 {
         cache.clear();
     }
     cache.insert(key, url.clone());

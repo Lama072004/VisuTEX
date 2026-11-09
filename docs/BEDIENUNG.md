@@ -200,16 +200,45 @@ Nach Änderungen *Erneut prüfen* (↻).
 
 ### Versionsverlauf
 
-Jedes **Speichern** legt automatisch eine Version an (unveränderter Stand: keine neue). *Überprüfen → Versionsverlauf*
-zeigt sie nach Tagen mit Uhrzeit, Name und Wortzahl (inkl. Zu-/Abnahme):
+Jedes **Speichern** legt automatisch eine Version an – mit Text, Bildern und Literatur (unveränderter Stand: keine
+neue). *Überprüfen → Versionsverlauf* zeigt sie nach Tagen mit Uhrzeit, Name und Wortzahl (inkl. Zu-/Abnahme) und oben,
+wo sie liegen:
 
 - **Version speichern …** sichert den aktuellen Stand unter einem Namen (z. B. „Abgabe“). Benannte Versionen bleiben
-  immer erhalten, von den automatischen die letzten 100.
+  immer erhalten; von den automatischen alle der letzten 24 Stunden, davor die letzte je Tag.
 - **Klick** auf eine Version vergleicht sie mit dem aktuellen Stand; über die Knöpfe daneben: vergleichen,
-  **wiederherstellen** (der aktuelle Stand wird vorher als Version gesichert; übernommen ist die alte Fassung erst nach
-  dem Speichern), umbenennen, löschen.
-- Die Versionen liegen im Datenordner von VisuTeX (`versionen/`), nicht im Projektordner – sie gehören zum Speicherort
-  des Dokuments. Wird die Datei verschoben oder umbenannt, beginnt ein neuer Verlauf.
+  **wiederherstellen** (der aktuelle Stand wird vorher als Version gesichert; Bilder und Literatur der Version kommen
+  zurück, wenn sie abweichen; übernommen ist die alte Fassung erst nach dem Speichern), umbenennen, löschen.
+- **Projektdateien (`.visutex`)** tragen ihren Verlauf in sich (siehe unten) – er reist beim Verschieben, Umbenennen
+  und Kopieren mit. Abschalten: *Datei → Optionen → „Versionsverlauf in der Projektdatei speichern“* (dann nur auf
+  diesem Computer). *Speichern unter* nimmt den Verlauf mit.
+- **Einzelne `.tex`-Dateien:** Ort wählbar unter *Datei → Optionen → „Versionsverlauf einzelner .tex-Dateien“* –
+  auf diesem Computer (App-Datenordner, Standard), neben dem Dokument (Ordner `.visutex-versionen`) oder ein eigener
+  Ordner (z. B. in der Cloud).
+
+### Projektdatei (`.visutex`) – eine Datei wie `.docx`
+
+Eine `.visutex`-Datei ist ein **ZIP** mit allem, was zum Dokument gehört:
+
+```text
+Bachelorarbeit.visutex
+├── Bachelorarbeit.tex      vollständiges LaTeX-Dokument
+├── Abbildungen/…, literatur.bib, Teildateien
+├── LIESMICH.txt            Hinweis für alle ohne VisuTeX
+└── visutex/                nur für VisuTeX: Ansicht, Einstellungen, Versionsverlauf
+```
+
+- **Ohne VisuTeX weiterarbeiten:** Datei entpacken (oder in `.zip` umbenennen) und `Bachelorarbeit.tex` in einem
+  beliebigen LaTeX-Editor öffnen (TeXstudio, TeXworks, VS Code …) – oder das ZIP bei Overleaf hochladen. Der Ordner
+  `visutex/` kann dabei ignoriert werden.
+- **Teilen** schickt standardmäßig eine Kopie **ohne** Versionsverlauf (Empfänger sehen keine früheren Fassungen);
+  „Versionsverlauf mitschicken“ im Teilen-Dialog nimmt ihn mit.
+- **Datei → Exportieren → LaTeX-Projekt (ZIP):** `.tex`, Bilder und Literatur ohne VisuTeX-Daten – zum Hochladen bei
+  Overleaf oder für jeden anderen Editor.
+- Gespeichert wird immer erst in eine temporäre Datei, die dann die alte ersetzt: Ein Absturz beim Speichern lässt die
+  bisherige Datei unversehrt. Ältere `.visutex`-Dateien (JSON) öffnen weiterhin und werden beim nächsten Speichern
+  zur Projektdatei. Beim Öffnen entpackt VisuTeX in einen Arbeitsordner im App-Datenordner; neu eingefügte Bilder
+  landen beim Speichern in der Datei.
 
 ### Vergleichen
 

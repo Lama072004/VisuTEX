@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   ArrowLeft,
+  FileArchive,
   FileDown,
   FilePlus,
   FileText,
@@ -51,6 +52,11 @@ export type AppPrefs = {
   skipUpdate: string;
   /** Symbolleiste für den Schnellzugriff (Befehls-IDs, siehe shortcuts/quickAccess.ts) */
   quickAccess: string[];
+  /** Versionsverlauf in der Projektdatei (.visutex) mitspeichern – reist mit der Datei */
+  versionsInProject: boolean;
+  /** Verlauf einzelner .tex-Dateien: App-Datenordner, Ordner neben dem Dokument oder eigener Ordner */
+  versionLocation: "app" | "beside" | "custom";
+  versionDir: string;
 };
 
 export type RecentFile = { path: string; name: string; openedAt: number };
@@ -100,9 +106,11 @@ type Props = {
   onSave: () => void;
   onSaveAs: () => void;
   onExportTex: () => void;
+  onExportZip: () => void;
   onExportPdf: () => void;
   onAddonsChanged: () => void;
   onChoosePackageDir: () => void;
+  onChooseVersionDir: () => void;
   onChooseBundle: () => void;
   onSystemCheck: () => void;
   onClose: () => void;
@@ -302,6 +310,11 @@ export function Backstage(props: Props) {
                 <strong>{t("LaTeX-Dokument (.tex)")}</strong>
                 <small>{t("Vollständiges Dokument inkl. Bilder, Literatur und Add-on-Dateien – kompiliert mit pdfLaTeX, XeLaTeX und LuaLaTeX (TeX Live, MiKTeX, Overleaf).")}</small>
               </button>
+              <button type="button" className="export-card" onClick={props.onExportZip}>
+                <FileArchive size={28} />
+                <strong>{t("LaTeX-Projekt (ZIP)")}</strong>
+                <small>{t("Eine ZIP-Datei mit .tex, Bildern und Literatur – zum Hochladen bei Overleaf oder für jeden anderen LaTeX-Editor.")}</small>
+              </button>
               <button type="button" className="export-card" onClick={props.onExportPdf}>
                 <FileDown size={28} />
                 <strong>{t("PDF")}</strong>
@@ -402,6 +415,24 @@ export function Backstage(props: Props) {
               <div className="form-field span-2" id="optionen-schnellzugriff">
                 <span>{t("Symbolleiste für den Schnellzugriff")}</span>
                 <QuickAccessPanel items={prefs.quickAccess} onChange={(quickAccess) => setPref({ quickAccess })} />
+              </div>
+              <label className="checkbox form-checkbox span-2">
+                <input type="checkbox" checked={prefs.versionsInProject} onChange={(event) => setPref({ versionsInProject: event.currentTarget.checked })} />
+                {t("Versionsverlauf in der Projektdatei speichern (reist beim Verschieben mit; Teilen und Exportieren geben ihn nur auf Wunsch weiter)")}
+              </label>
+              <div className="form-field span-2">
+                <span>{t("Versionsverlauf einzelner .tex-Dateien")}</span>
+                <span className="path-field">
+                  <select value={prefs.versionLocation} onChange={(event) => setPref({ versionLocation: event.currentTarget.value as AppPrefs["versionLocation"] })}>
+                    <option value="app">{t("Auf diesem Computer (App-Datenordner)")}</option>
+                    <option value="beside">{t("Neben dem Dokument (Ordner .visutex-versionen)")}</option>
+                    <option value="custom">{t("Eigener Ordner")}</option>
+                  </select>
+                  {prefs.versionLocation === "custom" && <code>{prefs.versionDir || t("noch kein Ordner gewählt")}</code>}
+                  {prefs.versionLocation === "custom" && (
+                    <button type="button" className="small" onClick={props.onChooseVersionDir}>{t("Ändern …")}</button>
+                  )}
+                </span>
               </div>
               <div className="form-field span-2">
                 <span>{t("Speicherort für nachgeladene TeX-Pakete")}</span>

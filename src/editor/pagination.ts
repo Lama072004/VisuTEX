@@ -426,6 +426,43 @@ export const Pagination = Extension.create({
         view: (view) => {
           let timer: number | undefined;
           let measuring = false;
+          // Seit dem letzten Messlauf geänderte oberste Blöcke (Indizes); `force`: alles neu messen
+          // (Bild geladen, Größe/Geometrie geändert, Blöcke eingefügt oder entfernt …).
+          let dirtyFrom = Infinity;
+          let dirtyTo = -1;
+          let force = true;
+          // Höhen der obersten Blöcke nach dem letzten Lauf (mit Abstandshaltern) und Blöcke mit Zeilen-Umbruch
+          let heights: number[] = [];
+          let splitBlocks = new Set<number>();
+          /** Höhe eines obersten Blocks samt Tabellenbeschriftung (Widget direkt dahinter). */
+          const blockHeight = (pos: number): number => {
+            const element = view.nodeDOM(pos);
+            if (!(element instanceof HTMLElement)) return -1;
+            const caption = element.nextElementSibling;
+            return element.offsetHeight + (caption?.classList.contains("table-caption") ? (caption as HTMLElement).offsetHeight : 0);
+          };
+          /** Nur Text in Blöcken geändert, deren Höhe gleich blieb? Dann bleiben alle Umbrüche gültig. */
+          const canSkip = () => {
+            const doc = view.state.doc;
+            if (force || dirtyTo < 0 || heights.length !== doc.childCount) return false;
+            let same = true;
+            doc.forEach((node, offset, index) => {
+              if (!same || index < dirtyFrom || index > dirtyTo) return;
+              // Kapitelüberschriften stehen in der Kopfzeile, Zeilen-Umbrüche verschieben sich mit dem Text
+              if (splitBlocks.has(index) || (node.type.name === "heading" && node.attrs.level === 1)) same = false;
+              else if (blockHeight(offset) !== heights[index]) same = false;
+            });
+            return same;
+          };
+          const remember = (breaks: Break[]) => {
+            const doc = view.state.doc;
+            heights = [];
+            doc.forEach((_node, offset) => heights.push(blockHeight(offset)));
+            splitBlocks = new Set(breaks.filter((entry) => entry.inline).map((entry) => doc.resolve(Math.min(entry.pos, doc.content.size)).index(0)));
+            dirtyFrom = Infinity;
+            dirtyTo = -1;
+            force = false;
+          };
           const run = () => {
             timer = undefined;
             if (measuring || !view.dom.isConnected) return;
@@ -436,6 +473,11 @@ export const Pagination = Extension.create({
               publish([{ chapter: "" }]);
               return;
             }
+            if (canSkip()) {
+              dirtyFrom = Infinity;
+              dirtyTo = -1;
+              return;
+            }
             measuring = true;
             try {
               if (current.length) view.dispatch(view.state.tr.setMeta(paginationKey, { breaks: [] }).setMeta("addToHistory", false));
@@ -444,11 +486,13 @@ export const Pagination = Extension.create({
                 view.dispatch(view.state.tr.setMeta(paginationKey, { breaks }).setMeta("addToHistory", false));
               }
               publish(pages);
+              remember(breaks);
             } finally {
               measuring = false;
             }
           };
-          const schedule = (delay = 120) => {
+          const schedule = (delay = 120, full = true) => {
+            if (full) force = true;
             if (timer !== undefined) window.clearTimeout(timer);
             timer = window.setTimeout(run, delay);
           };
@@ -466,7 +510,19 @@ export const Pagination = Extension.create({
             update: (updatedView, previousState) => {
               placeCaretAfterGap(updatedView);
               if (measuring) return;
-              if (updatedView.state.doc !== previousState.doc) schedule();
+              const doc = updatedView.state.doc;
+              if (doc === previousState.doc) return;
+              // Geänderten Bereich auf oberste Blöcke abbilden; andere Blockzahl → alles neu messen
+              const start = previousState.doc.content.findDiffStart(doc.content);
+              const end = previousState.doc.content.findDiffEnd(doc.content);
+              if (start === null || !end || doc.childCount !== previousState.doc.childCount) {
+                schedule();
+                return;
+              }
+              const clamp = (pos: number) => Math.max(0, Math.min(pos, doc.content.size));
+              dirtyFrom = Math.min(dirtyFrom, doc.resolve(clamp(start)).index(0));
+              dirtyTo = Math.max(dirtyTo, doc.resolve(clamp(Math.max(start, end.b))).index(0));
+              schedule(120, false);
             },
             destroy: () => {
               if (timer !== undefined) window.clearTimeout(timer);

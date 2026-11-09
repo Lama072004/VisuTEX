@@ -4624,3 +4624,7 @@ math-field.math-field::part(virtual-keyboard-toggle) {
   overflow-x: auto;
   max-width: 100%;
 }
+.history-location {
+  overflow-wrap: anywhere;
+  padding-top: 2px;
+}

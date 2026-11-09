@@ -10,6 +10,8 @@ import { useLocale, useT } from "../i18n";
 type Props = {
   /** Pfad des gespeicherten Dokuments (null: noch nicht gespeichert) */
   documentPath: string | null;
+  /** Wo der Verlauf liegt (Anzeige) */
+  location: string;
   versions: VersionInfo[] | null;
   busy: boolean;
   onRefresh: () => void;
@@ -24,7 +26,7 @@ type Props = {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-export function HistoryPanel({ documentPath, versions, busy, onRefresh, onClose, onSaveVersion, onCompareFile, onCompare, onRestore, onRename, onDelete }: Props) {
+export function HistoryPanel({ documentPath, location, versions, busy, onRefresh, onClose, onSaveVersion, onCompareFile, onCompare, onRestore, onRename, onDelete }: Props) {
   const t = useT();
   const locale = useLocale();
   const list = versions ?? [];
@@ -72,6 +74,11 @@ export function HistoryPanel({ documentPath, versions, busy, onRefresh, onClose,
         </button>
       </div>
       {!documentPath && <p className="muted review-note">{t("Versionen entstehen beim Speichern. Bitte das Dokument zuerst speichern.")}</p>}
+      {documentPath && location && (
+        <p className="muted review-note history-location" title={location}>
+          {t("Gespeichert:")} {location}
+        </p>
+      )}
       {documentPath && busy && !versions && <p className="muted review-note">{t("Versionen werden geladen …")}</p>}
       {documentPath && versions && list.length === 0 && <p className="muted review-note">{t("Noch keine Versionen – jedes Speichern legt eine an.")}</p>}
       {groups.map((group) => (
@@ -111,7 +118,7 @@ export function HistoryPanel({ documentPath, versions, busy, onRefresh, onClose,
         </section>
       ))}
       {documentPath && list.length > 0 && (
-        <p className="muted review-note">{t("Benannte Versionen bleiben erhalten; von den automatischen werden die letzten 100 aufbewahrt.")}</p>
+        <p className="muted review-note">{t("Benannte Versionen bleiben erhalten; von den automatischen alle der letzten 24 Stunden, davor die letzte je Tag.")}</p>
       )}
     </aside>
   );

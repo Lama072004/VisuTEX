@@ -2800,6 +2800,41 @@ pub struct ExportOptions<'a> {
     pub addon_preamble: &'a [String],
 }
 
+/// Zeilen der erzeugten Präambel, die `packages` laden (mit Optionen und zugehöriger Einstellung wie
+/// `\pgfplotsset`); Pakete ohne passende Zeile werden schlicht geladen.
+fn package_lines(packages: &[String], generated: &str) -> Vec<String> {
+    let mut lines = Vec::new();
+    for package in packages {
+        let loads = |line: &str| {
+            line.trim_start().starts_with("\\usepackage")
+                && line
+                    .rsplit_once('{')
+                    .and_then(|(_, rest)| rest.split_once('}'))
+                    .is_some_and(|(names, _)| names.split(',').any(|name| name.trim() == package))
+        };
+        let found: Vec<String> = generated
+            .lines()
+            .filter(|line| loads(line))
+            .map(|line| line.trim().to_string())
+            .collect();
+        if found.is_empty() {
+            lines.push(format!("\\usepackage{{{package}}}"));
+        } else {
+            lines.extend(found);
+        }
+        if package == "pgfplots" {
+            lines.extend(
+                generated
+                    .lines()
+                    .filter(|line| line.trim_start().starts_with("\\pgfplotsset"))
+                    .map(|line| line.trim().to_string()),
+            );
+        }
+    }
+    lines.dedup();
+    lines
+}
+
 pub fn export_document(doc: &Value, options: &ExportOptions) -> ExportResult {
     let custom = options
         .custom_preamble
@@ -2817,7 +2852,22 @@ pub fn export_document(doc: &Value, options: &ExportOptions) -> ExportResult {
     let body = exporter.body(doc);
     let generated_preamble =
         preamble::generate(options.settings, &exporter.usage, options.addon_preamble);
+    let missing = custom
+        .map(|preamble| preamble::missing_packages(preamble, &exporter.usage))
+        .unwrap_or_default();
+    // Nur Pakete für eingefügte Zeichnungen/Diagramme ergänzen – andere (z. B. `float` für [H]) laden
+    // fremde Dokumente oft auf eigenem Weg; dort bleibt es bei einem Hinweis (Quelltreue).
+    let (added, missing): (Vec<String>, Vec<String>) = missing
+        .into_iter()
+        .partition(|name| matches!(name.as_str(), "tikz" | "circuitikz" | "pgfplots"));
     let used_preamble = match custom {
+        // Eigene Präambel (fremde Dokumente): fehlende Pakete für eingefügte Inhalte (Skizze, Diagramm …)
+        // mit denselben Zeilen wie in der erzeugten Präambel ergänzen – sonst kompiliert das Dokument nicht.
+        Some(preamble) if !added.is_empty() => format!(
+            "{}\n% Von VisuTeX ergänzt (für eingefügte Inhalte):\n{}\n",
+            preamble.trim_end(),
+            package_lines(&added, &generated_preamble).join("\n")
+        ),
         Some(preamble) => format!("{}\n", preamble.trim_end()),
         None => generated_preamble.clone(),
     };
@@ -2828,9 +2878,6 @@ pub fn export_document(doc: &Value, options: &ExportOptions) -> ExportResult {
         &exporter.block_codes,
         children(doc).len(),
     );
-    let missing = custom
-        .map(|preamble| preamble::missing_packages(preamble, &exporter.usage))
-        .unwrap_or_default();
     let mut warnings = exporter.warnings;
     if !missing.is_empty() {
         warnings.push(format!(
@@ -2938,6 +2985,51 @@ mod tests {
             "Titel\\\\{}\n[Studiengang]\\\\{}\n*Stern\\\\\nnormal"
         );
         assert_eq!(join_latex_lines(&[]), "");
+    }
+
+    /// Fremdes Dokument mit eigener Präambel + eingefügte Skizze/Diagramm: Pakete werden ergänzt.
+    #[test]
+    fn custom_preamble_gets_missing_packages_for_inserted_content() {
+        let settings = DocumentSettings::default();
+        let preamble = "\\documentclass{article}\n\\usepackage{amsmath}";
+        let export = |doc: &Value| {
+            export_document(
+                doc,
+                &ExportOptions {
+                    settings: &settings,
+                    custom_preamble: Some(preamble),
+                    addon_preamble: &[],
+                },
+            )
+        };
+        // ohne neue Inhalte bleibt die Präambel unverändert (Quelltreue)
+        let plain = export(&json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "Text" }] }
+        ]}));
+        assert!(plain
+            .latex
+            .starts_with("\\documentclass{article}\n\\usepackage{amsmath}\n\\begin{document}"));
+        assert!(plain.missing_packages.is_empty());
+        let chart =
+            "% VisuTeX-Diagramm: {}\n\\begin{axis}\\addplot coordinates {(1,2)};\\end{axis}";
+        let with_drawings = export(&json!({ "type": "doc", "content": [
+            { "type": "tikzBlock", "attrs": { "code": "\\draw (0,0) to[R] (2,0);", "environment": "circuitikz" } },
+            { "type": "tikzBlock", "attrs": { "code": chart, "environment": "tikzpicture" } }
+        ]}));
+        let head = &with_drawings.latex[..with_drawings.latex.find("\\begin{document}").unwrap()];
+        assert!(head.contains("% Von VisuTeX ergänzt"), "{head}");
+        assert!(
+            head.contains("\\usepackage[european]{circuitikz}"),
+            "Optionen wie in der erzeugten Präambel: {head}"
+        );
+        assert!(
+            head.contains("\\usepackage{pgfplots}") && head.contains("\\pgfplotsset{compat=1.18}"),
+            "{head}"
+        );
+        assert!(with_drawings
+            .warnings
+            .iter()
+            .all(|warning| !warning.contains("Präambel")));
     }
 
     /// SyncTeX: Zeilenbereich je oberstem Block im fertigen Dokument.

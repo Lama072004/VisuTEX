@@ -21,6 +21,8 @@ export type ShareTarget = {
   dirty: boolean;
   /** LaTeX-Projekt (Bilder/Teildateien liegen daneben) */
   latexProject: boolean;
+  /** VisuTeX-Projektdatei (enthält Bilder, Literatur und ggf. den Versionsverlauf) */
+  project?: boolean;
 };
 
 type Props = {
@@ -42,6 +44,8 @@ export function ShareDialog({ target, locale, onSave, onShared, onClose }: Props
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  // Frühere Fassungen gehen nur auf ausdrücklichen Wunsch mit (Datenschutz – wie „Dokument prüfen“ in Word)
+  const [withHistory, setWithHistory] = useState(false);
   const primary = useRef<HTMLButtonElement>(null);
   useEffect(() => primary.current?.focus(), [target.path]);
   useEffect(() => {
@@ -66,7 +70,9 @@ export function ShareDialog({ target, locale, onSave, onShared, onClose }: Props
         setBusy(false);
         return;
       }
-      const name = await api.shareFile(path);
+      // Projektdatei ohne Versionsverlauf: Kopie im Cache-Ordner teilen (alte Projektdateien: unverändert)
+      const shared = target.project && !withHistory ? await api.projectCopy(path, null, false, true).catch(() => path) : path;
+      const name = await api.shareFile(shared);
       onShared(
         windows
           ? `${t("Teilen geöffnet für")} „${name}“ – ${t("gespeicherte Fassung")}${savedAt && !saveFirst ? ` ${t("vom")} ${savedAt}` : ""}.`
@@ -129,6 +135,15 @@ export function ShareDialog({ target, locale, onSave, onShared, onClose }: Props
                 </p>
               ) : (
                 <p className="muted">{t("Alle Änderungen sind gespeichert – die geteilte Datei entspricht dem aktuellen Stand.")}</p>
+              )}
+              {target.project && (
+                <>
+                  <p className="muted small">{t("Bilder und Literatur sind in der Projektdatei enthalten.")}</p>
+                  <label className="checkbox">
+                    <input type="checkbox" checked={withHistory} onChange={(event) => setWithHistory(event.currentTarget.checked)} />
+                    {t("Versionsverlauf mitschicken (Empfänger sehen dann auch frühere Fassungen)")}
+                  </label>
+                </>
               )}
               {target.latexProject && (
                 <p className="muted small">{t("Verwendet das Dokument Bilder oder Teildateien, geben Sie am besten den ganzen Ordner weiter („Im Ordner anzeigen“).")}</p>

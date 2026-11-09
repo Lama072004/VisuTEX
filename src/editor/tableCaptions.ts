@@ -6,6 +6,7 @@
 import { Extension } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Transaction } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { latexToHtml } from "../latex/miniRender";
 import { renderContext } from "../state/runtime";
@@ -15,6 +16,8 @@ const key = new PluginKey<DecorationSet>("vtxTableCaptions");
 function build(doc: PMNode): DecorationSet {
   const decorations: Decoration[] = [];
   doc.descendants((node, pos) => {
+    // Tabellen stehen nie in Absätzen – nicht in Text hinabsteigen
+    if (node.isTextblock) return false;
     if (node.type.name !== "table") return true;
     const caption = String(node.attrs.caption ?? "").trim();
     if (caption) {
@@ -32,14 +35,47 @@ function build(doc: PMNode): DecorationSet {
             else element.textContent = caption;
             return element;
           },
-          // Vor einem eventuellen Seitenumbruch-Abstandshalter (side -1) einordnen.
-          { side: above ? 1 : -2, key: `caption-${pos}-${above ? "a" : "b"}-${caption}`, ignoreSelection: true },
+          // Vor einem eventuellen Seitenumbruch-Abstandshalter (side -1) einordnen. Schlüssel ohne
+          // Position: Tippen davor verschiebt nur die Position, das Widget (mit CSS-Zähler) bleibt –
+          // ein neues Widget ließe den Browser die Stile des ganzen Dokuments neu berechnen.
+          { side: above ? 1 : -2, key: `caption-${above ? "a" : "b"}-${latex ? "l" : "t"}-${caption}`, ignoreSelection: true },
         ),
       );
     }
     return false;
   });
   return DecorationSet.create(doc, decorations);
+}
+
+/** Berührt eine Änderung eine Tabelle (vorher oder nachher)? Dann muss neu aufgebaut werden. */
+function touchesTable(tr: Transaction, before: PMNode): boolean {
+  const isTable = (node: PMNode) => node.type.name === "table";
+  const check = (doc: PMNode, from: number, to: number) => {
+    const $from = doc.resolve(Math.max(0, Math.min(from, doc.content.size)));
+    for (let depth = $from.depth; depth > 0; depth--) if (isTable($from.node(depth))) return true;
+    let found = false;
+    doc.nodesBetween($from.pos, Math.min(Math.max(to, $from.pos), doc.content.size), (node) => {
+      if (found || node.isTextblock) return false;
+      if (isTable(node)) found = true;
+      return !found;
+    });
+    return found;
+  };
+  return tr.steps.some((step, index) => {
+    const docBefore = tr.docs[index] ?? before;
+    const docAfter = tr.docs[index + 1] ?? tr.doc;
+    // Attributänderungen (AttrStep) verschieben nichts und haben keinen Bereich – Position prüfen
+    const pos = (step as unknown as { pos?: number }).pos;
+    if (typeof pos === "number") {
+      const node = docBefore.nodeAt(pos);
+      return (node !== null && isTable(node)) || check(docBefore, pos, pos);
+    }
+    let touched = false;
+    step.getMap().forEach((oldStart, oldEnd, newStart, newEnd) => {
+      touched ||= check(docBefore, oldStart, oldEnd) || check(docAfter, newStart, newEnd);
+    });
+    return touched;
+  });
 }
 
 export const TableCaptions = Extension.create({
@@ -50,7 +86,8 @@ export const TableCaptions = Extension.create({
         key,
         state: {
           init: (_, state) => build(state.doc),
-          apply: (tr, value) => (tr.docChanged ? build(tr.doc) : value),
+          // Nur neu aufbauen, wenn eine Änderung eine Tabelle berührt; sonst Positionen fortschreiben.
+          apply: (tr, value, oldState) => (!tr.docChanged ? value : touchesTable(tr, oldState.doc) ? build(tr.doc) : value.map(tr.mapping, tr.doc)),
         },
         props: {
           decorations: (state) => key.getState(state),
